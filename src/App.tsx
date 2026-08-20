@@ -3,6 +3,7 @@ import { MatchExplorer } from "./components/MatchExplorer";
 import { OverviewMap } from "./components/OverviewMap";
 import { PlacementsTable } from "./components/PlacementsTable";
 import { Settings } from "./components/Settings";
+import { StatusDashboard } from "./components/StatusDashboard";
 import { StudentsTable } from "./components/StudentsTable";
 import { SuggestAndAssign } from "./components/SuggestAndAssign";
 
@@ -12,6 +13,7 @@ const TABS = [
   { id: "map", label: "Overview Map", render: () => <OverviewMap /> },
   { id: "suggest", label: "Suggest & Assign", render: () => <SuggestAndAssign /> },
   { id: "match", label: "Match & Assign", render: () => <MatchExplorer /> },
+  { id: "status", label: "Status", render: () => <StatusDashboard /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
 ] as const;
 

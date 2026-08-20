@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { SAMPLE_PLACEMENTS, SAMPLE_STUDENTS } from "./sampleData";
 import type { Category, Placement, Student, Year } from "../types";
 
 export interface ImportResult<T> {
@@ -81,4 +82,41 @@ export async function importPlacementsCsv(file: File): Promise<ImportResult<Plac
   });
 
   return { rows, errors };
+}
+
+function downloadCsv(filename: string, rows: Record<string, string | number | boolean>[]) {
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadSampleStudentsCsv() {
+  downloadCsv(
+    "students-sample.csv",
+    SAMPLE_STUDENTS.map((s) => ({
+      name: s.name,
+      postcode: s.postcode,
+      year: s.year,
+      isDriver: s.isDriver,
+    })),
+  );
+}
+
+export function downloadSamplePlacementsCsv() {
+  downloadCsv(
+    "placements-sample.csv",
+    SAMPLE_PLACEMENTS.map((p) => ({
+      name: p.name,
+      postcode: p.postcode,
+      category: p.category,
+      yearsOffered: p.yearsOffered.join(";"),
+      requiresDriver: p.requiresDriver,
+      capacity: p.capacity ?? "",
+    })),
+  );
 }

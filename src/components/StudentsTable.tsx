@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
-import { importStudentsCsv } from "../lib/csv";
+import { downloadSampleStudentsCsv, importStudentsCsv } from "../lib/csv";
 import type { Year } from "../types";
 
 export function StudentsTable() {
@@ -27,12 +27,24 @@ export function StudentsTable() {
     await db.assignments.where("studentId").equals(id).delete();
   }
 
+  async function addStudent() {
+    await db.students.add({
+      id: crypto.randomUUID(),
+      name: "New student",
+      postcode: "",
+      year: 1,
+      isDriver: false,
+    });
+  }
+
   return (
     <div className="panel">
       <div className="panel-header">
         <h2>Students</h2>
         <div>
+          <button onClick={addStudent}>Add student</button>
           <button onClick={() => fileInput.current?.click()}>Import CSV</button>
+          <button onClick={downloadSampleStudentsCsv}>Download sample CSV</button>
           <input
             ref={fileInput}
             type="file"

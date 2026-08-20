@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { db, getSetting, setSetting } from "../db";
+import { loadSampleData } from "../lib/sampleData";
 
 interface Backup {
   students: unknown[];
@@ -77,11 +78,36 @@ export function Settings() {
     alert("Import complete.");
   }
 
+  async function handleLoadSampleData() {
+    const existing = (await db.students.count()) + (await db.placements.count());
+    if (existing > 0 && !confirm("Add sample students and placements alongside your existing data?")) return;
+    await loadSampleData();
+  }
+
+  async function handleClearAllData() {
+    if (!confirm("This will permanently delete all students, placements, and assignments. Continue?")) return;
+    await db.transaction("rw", [db.students, db.placements, db.assignments], async () => {
+      await Promise.all([db.students.clear(), db.placements.clear(), db.assignments.clear()]);
+    });
+  }
+
   return (
     <div className="panel">
       <div className="panel-header">
         <h2>Settings</h2>
       </div>
+
+      <section>
+        <h3>Sample data</h3>
+        <p className="hint">
+          For trying the app out: adds a set of made-up students and placements spread across several UK
+          cities, with real postcodes so routing and maps work properly.
+        </p>
+        <button onClick={handleLoadSampleData}>Load sample data</button>
+        <button className="link-danger" onClick={handleClearAllData}>
+          Clear all data
+        </button>
+      </section>
 
       <section>
         <h3>Google API key</h3>

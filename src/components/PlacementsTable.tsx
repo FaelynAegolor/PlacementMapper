@@ -1,8 +1,9 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
-import { importPlacementsCsv } from "../lib/csv";
+import { downloadSamplePlacementsCsv, importPlacementsCsv } from "../lib/csv";
 import type { Category, Year } from "../types";
+import { PostcodeLookup } from "./PostcodeLookup";
 
 export function PlacementsTable() {
   const placements = useLiveQuery(() => db.placements.orderBy("name").toArray(), []);
@@ -42,6 +43,18 @@ export function PlacementsTable() {
     return current.includes(year) ? current.filter((y) => y !== year) : [...current, year].sort();
   }
 
+  async function addPlacement() {
+    await db.placements.add({
+      id: crypto.randomUUID(),
+      name: "New placement",
+      postcode: "",
+      category: "adult",
+      yearsOffered: [1],
+      requiresDriver: false,
+      capacity: null,
+    });
+  }
+
   const filtered = placements?.filter((p) => categoryFilter === "all" || p.category === categoryFilter);
 
   return (
@@ -49,7 +62,9 @@ export function PlacementsTable() {
       <div className="panel-header">
         <h2>Placements</h2>
         <div>
+          <button onClick={addPlacement}>Add placement</button>
           <button onClick={() => fileInput.current?.click()}>Import CSV</button>
+          <button onClick={downloadSamplePlacementsCsv}>Download sample CSV</button>
           <input ref={fileInput} type="file" accept=".csv" hidden onChange={handleFile} />
         </div>
       </div>
@@ -94,6 +109,10 @@ export function PlacementsTable() {
               </td>
               <td>
                 <input value={p.postcode} onChange={(e) => updateField(p.id, { postcode: e.target.value })} />
+                <PostcodeLookup
+                  defaultQuery={p.name}
+                  onSelect={(postcode) => updateField(p.id, { postcode })}
+                />
               </td>
               <td>
                 <select
