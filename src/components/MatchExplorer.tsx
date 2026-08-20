@@ -5,7 +5,7 @@ import { isEligible, setAssignment } from "../lib/assignments";
 import { formatDistance, formatDuration, getRoute, MissingApiKeyError } from "../lib/routing";
 import { useGeocodedPoints } from "../lib/useGeocodedPoints";
 import { normalisePostcode } from "../lib/geocode";
-import type { Category, LatLng, ManifestStep, Placement } from "../types";
+import type { Category, LatLng, ManifestStep, Placement, TravelMode } from "../types";
 import { MatchMap } from "./MatchMap";
 import { toast } from "../lib/toast";
 
@@ -28,6 +28,7 @@ export function MatchExplorer() {
 
   const [studentId, setStudentId] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
+  const [sortMode, setSortMode] = useState<TravelMode>("driving");
   const [routes, setRoutes] = useState<Record<string, { driving?: RouteState; transit?: RouteState }>>({});
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
 
@@ -83,10 +84,9 @@ export function MatchExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, categoryFilter]);
 
-  const primaryMode = student?.isDriver ? "driving" : "transit";
   const sorted = [...eligible].sort((a, b) => {
-    const ra = routes[a.id]?.[primaryMode];
-    const rb = routes[b.id]?.[primaryMode];
+    const ra = routes[a.id]?.[sortMode];
+    const rb = routes[b.id]?.[sortMode];
     const da = ra?.status === "ok" ? ra.durationSeconds : Infinity;
     const db_ = rb?.status === "ok" ? rb.durationSeconds : Infinity;
     return da - db_;
@@ -125,7 +125,7 @@ export function MatchExplorer() {
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2>Match & Assign</h2>
+        <h2>Manually Assign</h2>
       </div>
       <div className="filter-row">
         <label>
@@ -145,6 +145,13 @@ export function MatchExplorer() {
             <option value="all">All</option>
             <option value="paediatric">Paediatric</option>
             <option value="adult">Adult</option>
+          </select>
+        </label>
+        <label>
+          Sort by:
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value as TravelMode)}>
+            <option value="driving">Driving time</option>
+            <option value="transit">Public transport time</option>
           </select>
         </label>
       </div>
@@ -212,8 +219,8 @@ export function MatchExplorer() {
               <tr>
                 <th>Placement</th>
                 <th>Category</th>
-                <th>Driving</th>
-                <th>Transit</th>
+                <th>Driving{sortMode === "driving" && " ▲"}</th>
+                <th>Transit{sortMode === "transit" && " ▲"}</th>
                 <th></th>
               </tr>
             </thead>

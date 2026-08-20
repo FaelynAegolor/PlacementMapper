@@ -13,7 +13,17 @@ export interface Suggestion {
   mode: TravelMode | null;
   durationSeconds: number | null;
   distanceMeters: number | null;
+  /** 1 = closest eligible placement by travel time, 2 = second-closest, etc. */
+  rank: number | null;
+  /** Human-readable explanation of why this placement was chosen. */
+  explanation?: string;
   reason?: string;
+}
+
+export function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 interface Candidate {
@@ -122,25 +132,43 @@ export async function suggestAssignments(
   ranked.sort((a, b) => a.durationSeconds - b.durationSeconds);
 
   // Greedily assign shortest-travel-time first, respecting one assignment
-  // per student and placement capacity for this year.
+  // per student and placement capacity for this year. Track which closer
+  // candidates were skipped (and why) so the choice can be explained.
   const assignedStudents = new Set<string>();
   const placementCounts = new Map<string, number>();
   const suggestions = new Map<string, Suggestion>();
+  const skippedFull = new Map<string, string[]>(); // studentId -> placement names skipped as full
 
   for (const candidate of ranked) {
     if (assignedStudents.has(candidate.studentId)) continue;
     const placement = placementById.get(candidate.placementId)!;
     const count = placementCounts.get(candidate.placementId) ?? 0;
-    if (placement.capacity != null && count >= placement.capacity) continue;
+    if (placement.capacity != null && count >= placement.capacity) {
+      const list = skippedFull.get(candidate.studentId) ?? [];
+      list.push(placement.name);
+      skippedFull.set(candidate.studentId, list);
+      continue;
+    }
 
     assignedStudents.add(candidate.studentId);
     placementCounts.set(candidate.placementId, count + 1);
+
+    const ownRanking = ranked.filter((c) => c.studentId === candidate.studentId);
+    const rank = ownRanking.findIndex((c) => c.placementId === candidate.placementId) + 1;
+    const skipped = skippedFull.get(candidate.studentId) ?? [];
+    const explanation =
+      rank <= 1
+        ? "Closest eligible placement by travel time."
+        : `${ordinal(rank)} closest by travel time — closer option${skipped.length === 1 ? "" : "s"} already full: ${skipped.join(", ")}.`;
+
     suggestions.set(candidate.studentId, {
       studentId: candidate.studentId,
       placementId: candidate.placementId,
       mode: candidate.mode,
       durationSeconds: candidate.durationSeconds,
       distanceMeters: candidate.distanceMeters,
+      rank,
+      explanation,
     });
   }
 
@@ -171,6 +199,7 @@ export async function suggestAssignments(
       mode: null,
       durationSeconds: null,
       distanceMeters: null,
+      rank: null,
       reason,
     });
   }

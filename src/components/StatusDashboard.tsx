@@ -30,6 +30,22 @@ export function StatusDashboard() {
     return { placement: p, byYear };
   });
 
+  let totalPlaces = 0;
+  let filledPlaces = 0;
+  let unlimitedSlots = 0;
+  for (const { placement, byYear } of placementFill) {
+    for (const { count, offered } of byYear) {
+      if (!offered) continue;
+      if (placement.capacity == null) {
+        unlimitedSlots++;
+      } else {
+        totalPlaces += placement.capacity;
+        filledPlaces += Math.min(count, placement.capacity);
+      }
+    }
+  }
+  const availablePlaces = totalPlaces - filledPlaces;
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -52,6 +68,18 @@ export function StatusDashboard() {
         <div className="stat-tile">
           <div className="stat-value">{placements.length}</div>
           <div className="stat-label">Placements</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value">{availablePlaces}</div>
+          <div className="stat-label">
+            Places available{unlimitedSlots > 0 && ` (+${unlimitedSlots} unlimited)`}
+          </div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value">{totalPlaces}</div>
+          <div className="stat-label">
+            Total places on placements{unlimitedSlots > 0 && ` (+${unlimitedSlots} unlimited)`}
+          </div>
         </div>
       </div>
 

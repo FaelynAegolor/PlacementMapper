@@ -1,5 +1,4 @@
-import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
-import { useEffect } from "react";
+import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import type { LatLng, Placement } from "../types";
 import {
   ADULT_COLOR,
@@ -9,23 +8,7 @@ import {
   STUDENT_COLOR,
   TRANSIT_ROUTE_COLOR,
 } from "./mapIcons";
-
-function FitBounds({ points }: { points: LatLng[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length === 0) return;
-    if (points.length === 1) {
-      map.setView([points[0].lat, points[0].lng], 12);
-      return;
-    }
-    map.fitBounds(
-      points.map((p) => [p.lat, p.lng]),
-      { padding: [32, 32] },
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(points)]);
-  return null;
-}
+import { FitBounds } from "./FitBounds";
 
 interface MatchMapProps {
   studentName: string;

@@ -13,8 +13,8 @@ const TABS = [
   { id: "students", label: "Students", render: () => <StudentsTable /> },
   { id: "placements", label: "Placements", render: () => <PlacementsTable /> },
   { id: "map", label: "Overview Map", render: () => <OverviewMap /> },
-  { id: "suggest", label: "Suggest & Assign", render: () => <SuggestAndAssign /> },
-  { id: "match", label: "Match & Assign", render: () => <MatchExplorer /> },
+  { id: "suggest", label: "Auto Assign", render: () => <SuggestAndAssign /> },
+  { id: "match", label: "Manually Assign", render: () => <MatchExplorer /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
 ] as const;
 

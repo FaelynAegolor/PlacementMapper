@@ -3,7 +3,7 @@ import { useState } from "react";
 import { db } from "../db";
 import { isEligible, setAssignment } from "../lib/assignments";
 import { formatDistance, formatDuration } from "../lib/routing";
-import { suggestAssignments, type Suggestion } from "../lib/suggest";
+import { ordinal, suggestAssignments, type Suggestion } from "../lib/suggest";
 import { toast } from "../lib/toast";
 import type { Category, Year } from "../types";
 
@@ -62,7 +62,7 @@ export function SuggestAndAssign() {
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2>Suggest & Assign</h2>
+        <h2>Auto Assign</h2>
       </div>
       <div className="filter-row">
         <label>
@@ -86,9 +86,10 @@ export function SuggestAndAssign() {
         </button>
       </div>
       <p className="hint">
-        Proposes a placement per student, minimising travel time (driving for drivers, public transport for
-        everyone else), while respecting driver-only placements, capacity, and the year 2/3 repeat rule. Review
-        and override below, then commit.
+        Proposes each student's closest eligible placement by travel time (driving for drivers, public
+        transport for everyone else), while respecting driver-only placements, capacity, and the year 2/3
+        repeat rule. Where a student didn't get their closest option, "Why this choice" explains what was
+        already full. Review and override below, then commit.
       </p>
 
       {suggestions && (
@@ -100,6 +101,7 @@ export function SuggestAndAssign() {
                 <th>Suggested placement</th>
                 <th>Mode</th>
                 <th>Time</th>
+                <th>Why this choice</th>
                 <th>Override</th>
               </tr>
             </thead>
@@ -117,6 +119,10 @@ export function SuggestAndAssign() {
                       {s.durationSeconds != null && s.distanceMeters != null
                         ? `${formatDuration(s.durationSeconds)} (${formatDistance(s.distanceMeters)})`
                         : "—"}
+                    </td>
+                    <td>
+                      {s.rank != null && <span className="badge">{ordinal(s.rank)} closest</span>}
+                      {s.explanation && <div className="hint">{s.explanation}</div>}
                     </td>
                     <td>
                       <select

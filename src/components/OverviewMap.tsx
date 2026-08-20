@@ -6,6 +6,7 @@ import { normalisePostcode } from "../lib/geocode";
 import { useGeocodedPoints } from "../lib/useGeocodedPoints";
 import type { Category, Year } from "../types";
 import { ADULT_COLOR, dotIcon, PAEDIATRIC_COLOR, STUDENT_COLOR } from "./mapIcons";
+import { FitBounds } from "./FitBounds";
 
 const ALL_YEARS: Year[] = [1, 2, 3];
 
@@ -33,6 +34,9 @@ export function OverviewMap() {
     ...(showPlacements ? visiblePlacements.map((p) => p.postcode) : []),
   ];
   const points = useGeocodedPoints(postcodes);
+  const visiblePoints = postcodes
+    .map((postcode) => points.get(normalisePostcode(postcode)))
+    .filter((p): p is NonNullable<typeof p> => p != null);
 
   function toggleYear(y: Year) {
     setYears((prev) => {
@@ -138,6 +142,7 @@ export function OverviewMap() {
               </Marker>
             );
           })}
+        <FitBounds points={visiblePoints} />
       </MapContainer>
     </div>
   );
