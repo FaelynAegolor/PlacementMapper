@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
 import { downloadSampleStudentsCsv, importStudentsCsv } from "../lib/csv";
+import { toast } from "../lib/toast";
 import type { Year } from "../types";
 
 export function StudentsTable() {
@@ -15,16 +16,21 @@ export function StudentsTable() {
     if (!file) return;
     const { rows, errors } = await importStudentsCsv(file);
     setImportErrors(errors);
-    if (rows.length) await db.students.bulkAdd(rows);
+    if (rows.length) {
+      await db.students.bulkAdd(rows);
+      toast(`Imported ${rows.length} student${rows.length === 1 ? "" : "s"}`);
+    }
+    if (errors.length) toast(`${errors.length} row${errors.length === 1 ? "" : "s"} skipped — see details below`, "error");
   }
 
   async function updateField(id: string, patch: Partial<{ name: string; postcode: string; year: Year; isDriver: boolean }>) {
     await db.students.update(id, patch);
   }
 
-  async function remove(id: string) {
+  async function remove(id: string, name: string) {
     await db.students.delete(id);
     await db.assignments.where("studentId").equals(id).delete();
+    toast(`Removed ${name}`);
   }
 
   async function addStudent() {
@@ -35,6 +41,7 @@ export function StudentsTable() {
       year: 1,
       isDriver: false,
     });
+    toast("Student added");
   }
 
   return (
@@ -107,7 +114,7 @@ export function StudentsTable() {
                 />
               </td>
               <td>
-                <button className="link-danger" onClick={() => remove(s.id)}>
+                <button className="link-danger" onClick={() => remove(s.id, s.name)}>
                   Remove
                 </button>
               </td>

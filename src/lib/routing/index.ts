@@ -1,17 +1,13 @@
-import { db } from "../../db";
+import { db, getSetting } from "../../db";
 import type { RouteResult, TravelMode } from "../../types";
 import { geocodePostcode } from "../geocode";
-import { fetchDrivingRoute } from "./driving";
+import { fetchDrivingRouteGoogle, fetchDrivingRouteOsrm } from "./driving";
 import { fetchTransitRoute } from "./transit";
 
 export { MissingApiKeyError } from "./transit";
 
-export function routeCacheKey(
-  fromPostcode: string,
-  toPostcode: string,
-  mode: TravelMode,
-): string {
-  return `${fromPostcode.trim().toUpperCase()}|${toPostcode.trim().toUpperCase()}|${mode}`;
+function routeCacheKey(fromPostcode: string, toPostcode: string, engine: string): string {
+  return `${fromPostcode.trim().toUpperCase()}|${toPostcode.trim().toUpperCase()}|${engine}`;
 }
 
 export async function getRoute(
@@ -20,7 +16,9 @@ export async function getRoute(
   mode: TravelMode,
   options: { forceRefresh?: boolean } = {},
 ): Promise<RouteResult> {
-  const key = routeCacheKey(fromPostcode, toPostcode, mode);
+  const apiKey = mode === "driving" ? await getSetting("googleApiKey") : undefined;
+  const engine = mode === "transit" ? "transit" : apiKey ? "driving-google" : "driving-osrm";
+  const key = routeCacheKey(fromPostcode, toPostcode, engine);
 
   if (!options.forceRefresh) {
     const cached = await db.routeCache.get(key);
@@ -33,9 +31,11 @@ export async function getRoute(
   ]);
 
   const result =
-    mode === "driving"
-      ? await fetchDrivingRoute(from, to)
-      : await fetchTransitRoute(from, to);
+    mode === "transit"
+      ? await fetchTransitRoute(from, to)
+      : apiKey
+        ? await fetchDrivingRouteGoogle(from, to, apiKey)
+        : await fetchDrivingRouteOsrm(from, to);
 
   const record: RouteResult = {
     key,
@@ -44,6 +44,8 @@ export async function getRoute(
     durationSeconds: result.durationSeconds,
     geometry: result.geometry,
     fetchedAt: Date.now(),
+    summary: result.summary,
+    manifest: result.manifest,
   };
 
   await db.routeCache.put(record);
@@ -58,7 +60,9 @@ export function formatDuration(seconds: number): string {
   return rest === 0 ? `${hours} hr` : `${hours} hr ${rest} min`;
 }
 
+const METERS_PER_MILE = 1609.344;
+
 export function formatDistance(meters: number): string {
-  const km = meters / 1000;
-  return `${km.toFixed(1)} km`;
+  const miles = meters / METERS_PER_MILE;
+  return `${miles.toFixed(1)} mi`;
 }

@@ -6,19 +6,20 @@ import { Settings } from "./components/Settings";
 import { StatusDashboard } from "./components/StatusDashboard";
 import { StudentsTable } from "./components/StudentsTable";
 import { SuggestAndAssign } from "./components/SuggestAndAssign";
+import { ToastHost } from "./components/ToastHost";
 
 const TABS = [
+  { id: "status", label: "Status", render: () => <StatusDashboard /> },
   { id: "students", label: "Students", render: () => <StudentsTable /> },
   { id: "placements", label: "Placements", render: () => <PlacementsTable /> },
   { id: "map", label: "Overview Map", render: () => <OverviewMap /> },
   { id: "suggest", label: "Suggest & Assign", render: () => <SuggestAndAssign /> },
   { id: "match", label: "Match & Assign", render: () => <MatchExplorer /> },
-  { id: "status", label: "Status", render: () => <StatusDashboard /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
 ] as const;
 
 function App() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("students");
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("status");
   const active = TABS.find((t) => t.id === tab)!;
 
   return (
@@ -35,6 +36,7 @@ function App() {
         ))}
       </nav>
       <main>{active.render()}</main>
+      <ToastHost />
     </div>
   );
 }

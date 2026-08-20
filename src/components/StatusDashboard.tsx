@@ -55,64 +55,75 @@ export function StatusDashboard() {
         </div>
       </div>
 
-      <h3>Waiting to be assigned</h3>
-      {waiting.length === 0 ? (
-        <p className="hint">Every student has a placement for their current year.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Year</th>
-              <th>Driver?</th>
-              <th>Postcode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {waiting
-              .sort((a, b) => a.year - b.year || a.name.localeCompare(b.name))
-              .map((s) => (
-                <tr key={s.id}>
-                  <td>{s.name}</td>
-                  <td>{s.year}</td>
-                  <td>{s.isDriver ? "Yes" : "No"}</td>
-                  <td>{s.postcode}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      )}
+      <div className="year-columns">
+        {YEARS.map((year) => {
+          const yearWaiting = waiting.filter((s) => s.year === year).sort((a, b) => a.name.localeCompare(b.name));
+          const yearAssigned = assigned
+            .filter((a) => a.student.year === year)
+            .sort((a, b) => a.student.name.localeCompare(b.student.name));
+          const total = yearWaiting.length + yearAssigned.length;
 
-      <h3>Assigned placements</h3>
-      {assigned.length === 0 ? (
-        <p className="hint">No assignments yet.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Year</th>
-              <th>Placement</th>
-              <th>Category</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assigned
-              .sort((a, b) => a.assignment.year - b.assignment.year || a.student.name.localeCompare(b.student.name))
-              .map(({ student, assignment }) => {
-                const placement = placementById.get(assignment.placementId);
-                return (
-                  <tr key={student.id}>
-                    <td>{student.name}</td>
-                    <td>{assignment.year}</td>
-                    <td>{placement?.name ?? "—"}</td>
-                    <td>{placement?.category ?? "—"}</td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      )}
+          return (
+            <div className="year-column" key={year}>
+              <h3>
+                Year {year}{" "}
+                <span className="hint">
+                  ({yearAssigned.length}/{total} assigned)
+                </span>
+              </h3>
+
+              <h4>Waiting to be assigned</h4>
+              {yearWaiting.length === 0 ? (
+                <p className="hint">None.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Driver?</th>
+                      <th>Postcode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yearWaiting.map((s) => (
+                      <tr key={s.id}>
+                        <td>{s.name}</td>
+                        <td>{s.isDriver ? "Yes" : "No"}</td>
+                        <td>{s.postcode}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              <h4>Assigned</h4>
+              {yearAssigned.length === 0 ? (
+                <p className="hint">None yet.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Placement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yearAssigned.map(({ student, assignment }) => {
+                      const placement = placementById.get(assignment.placementId);
+                      return (
+                        <tr key={student.id}>
+                          <td>{student.name}</td>
+                          <td>{placement?.name ?? "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       <h3>Placement capacity</h3>
       {placementFill.length === 0 ? (

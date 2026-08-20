@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
 import { downloadSamplePlacementsCsv, importPlacementsCsv } from "../lib/csv";
+import { toast } from "../lib/toast";
 import type { Category, Year } from "../types";
 import { PostcodeLookup } from "./PostcodeLookup";
 
@@ -17,7 +18,11 @@ export function PlacementsTable() {
     if (!file) return;
     const { rows, errors } = await importPlacementsCsv(file);
     setImportErrors(errors);
-    if (rows.length) await db.placements.bulkAdd(rows);
+    if (rows.length) {
+      await db.placements.bulkAdd(rows);
+      toast(`Imported ${rows.length} placement${rows.length === 1 ? "" : "s"}`);
+    }
+    if (errors.length) toast(`${errors.length} row${errors.length === 1 ? "" : "s"} skipped — see details below`, "error");
   }
 
   async function updateField(
@@ -34,9 +39,10 @@ export function PlacementsTable() {
     await db.placements.update(id, patch);
   }
 
-  async function remove(id: string) {
+  async function remove(id: string, name: string) {
     await db.placements.delete(id);
     await db.assignments.where("placementId").equals(id).delete();
+    toast(`Removed ${name}`);
   }
 
   function toggleYear(current: Year[], year: Year): Year[] {
@@ -53,6 +59,7 @@ export function PlacementsTable() {
       requiresDriver: false,
       capacity: null,
     });
+    toast("Placement added");
   }
 
   const filtered = placements?.filter((p) => categoryFilter === "all" || p.category === categoryFilter);
@@ -111,7 +118,10 @@ export function PlacementsTable() {
                 <input value={p.postcode} onChange={(e) => updateField(p.id, { postcode: e.target.value })} />
                 <PostcodeLookup
                   defaultQuery={p.name}
-                  onSelect={(postcode) => updateField(p.id, { postcode })}
+                  onSelect={(postcode) => {
+                    updateField(p.id, { postcode });
+                    toast(`Postcode set to ${postcode}`);
+                  }}
                 />
               </td>
               <td>
@@ -155,7 +165,7 @@ export function PlacementsTable() {
                 />
               </td>
               <td>
-                <button className="link-danger" onClick={() => remove(p.id)}>
+                <button className="link-danger" onClick={() => remove(p.id, p.name)}>
                   Remove
                 </button>
               </td>

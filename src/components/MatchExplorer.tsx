@@ -2,15 +2,24 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { db } from "../db";
 import { isEligible, setAssignment } from "../lib/assignments";
-import { geocodePostcode } from "../lib/geocode";
 import { formatDistance, formatDuration, getRoute, MissingApiKeyError } from "../lib/routing";
-import type { Category, LatLng, Placement, TravelMode } from "../types";
-import { RouteMap } from "./RouteMap";
+import { useGeocodedPoints } from "../lib/useGeocodedPoints";
+import { normalisePostcode } from "../lib/geocode";
+import type { Category, LatLng, ManifestStep, Placement } from "../types";
+import { MatchMap } from "./MatchMap";
+import { toast } from "../lib/toast";
 
 type RouteState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ok"; durationSeconds: number; distanceMeters: number; geometry: LatLng[] };
+  | {
+      status: "ok";
+      durationSeconds: number;
+      distanceMeters: number;
+      geometry: LatLng[];
+      summary?: string;
+      manifest?: ManifestStep[];
+    };
 
 export function MatchExplorer() {
   const students = useLiveQuery(() => db.students.orderBy("name").toArray(), []) ?? [];
@@ -21,12 +30,13 @@ export function MatchExplorer() {
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [routes, setRoutes] = useState<Record<string, { driving?: RouteState; transit?: RouteState }>>({});
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
-  const [mapMode, setMapMode] = useState<TravelMode>("driving");
 
   const student = students.find((s) => s.id === studentId);
   const eligible = student
     ? placements.filter((p) => isEligible(student, p, categoryFilter === "all" ? null : categoryFilter))
     : [];
+
+  const mapPoints = useGeocodedPoints(student ? [student.postcode, ...eligible.map((p) => p.postcode)] : []);
 
   useEffect(() => {
     if (!student) return;
@@ -50,6 +60,8 @@ export function MatchExplorer() {
                   durationSeconds: result.durationSeconds,
                   distanceMeters: result.distanceMeters,
                   geometry: result.geometry,
+                  summary: result.summary,
+                  manifest: result.manifest,
                 },
               },
             }));
@@ -71,7 +83,7 @@ export function MatchExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, categoryFilter]);
 
-  const primaryMode: TravelMode = student?.isDriver ? "driving" : "transit";
+  const primaryMode = student?.isDriver ? "driving" : "transit";
   const sorted = [...eligible].sort((a, b) => {
     const ra = routes[a.id]?.[primaryMode];
     const rb = routes[b.id]?.[primaryMode];
@@ -81,34 +93,31 @@ export function MatchExplorer() {
   });
 
   const selectedPlacement = placements.find((p) => p.id === selectedPlacementId) ?? null;
-  const [mapPoints, setMapPoints] = useState<{ from: LatLng; to: LatLng } | null>(null);
+  const studentPoint = student ? mapPoints.get(normalisePostcode(student.postcode)) : undefined;
+  const mapPlacements = eligible
+    .map((placement) => {
+      const point = mapPoints.get(normalisePostcode(placement.postcode));
+      return point ? { placement, point } : null;
+    })
+    .filter((x): x is { placement: Placement; point: LatLng } => x !== null);
 
-  useEffect(() => {
-    if (!student || !selectedPlacement) {
-      setMapPoints(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const [from, to] = await Promise.all([
-          geocodePostcode(student.postcode),
-          geocodePostcode(selectedPlacement.postcode),
-        ]);
-        if (!cancelled) setMapPoints({ from, to });
-      } catch {
-        if (!cancelled) setMapPoints(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [student, selectedPlacement]);
+  const selectedDriving = selectedPlacementId ? routes[selectedPlacementId]?.driving : undefined;
+  const selectedTransit = selectedPlacementId ? routes[selectedPlacementId]?.transit : undefined;
+
+  function isPlacementFull(placement: Placement): boolean {
+    if (!student || placement.capacity == null) return false;
+    const count = assignments.filter((a) => a.placementId === placement.id && a.year === student.year).length;
+    const alreadyHolds = assignments.some(
+      (a) => a.studentId === student.id && a.year === student.year && a.placementId === placement.id,
+    );
+    return !alreadyHolds && count >= placement.capacity;
+  }
 
   async function assign(placement: Placement) {
     if (!student) return;
     const result = await setAssignment(student.id, placement.id, student.year);
-    if (!result.ok) alert(result.reason);
+    if (result.ok) toast(`Assigned ${student.name} to ${placement.name}`);
+    else toast(result.reason ?? "Could not assign", "error");
   }
 
   const currentAssignment = student ? assignments.find((a) => a.studentId === student.id && a.year === student.year) : undefined;
@@ -148,6 +157,56 @@ export function MatchExplorer() {
               <strong>{placements.find((p) => p.id === currentAssignment.placementId)?.name ?? "—"}</strong>
             </p>
           )}
+
+          {studentPoint && mapPlacements.length > 0 && (
+            <>
+              <MatchMap
+                studentName={student.name}
+                studentPoint={studentPoint}
+                placements={mapPlacements}
+                selectedPlacementId={selectedPlacementId}
+                onSelect={setSelectedPlacementId}
+                drivingGeometry={selectedDriving?.status === "ok" ? selectedDriving.geometry : null}
+                transitGeometry={selectedTransit?.status === "ok" ? selectedTransit.geometry : null}
+              />
+              <div className="map-legend">
+                <span>
+                  <i style={{ background: "#0f766e" }} /> Student
+                </span>
+                <span>
+                  <i style={{ background: "#2563eb" }} /> Paediatric placement
+                </span>
+                <span>
+                  <i style={{ background: "#b45309" }} /> Adult placement
+                </span>
+                <span>— Driving route</span>
+                <span>┄ Transit route</span>
+              </div>
+              {selectedPlacement && (
+                <div className="route-summary-row">
+                  <div className="route-summary-tile">
+                    <strong>Driving</strong>
+                    <div>{renderRouteSummary(selectedDriving)}</div>
+                  </div>
+                  <div className="route-summary-tile">
+                    <strong>Public transport</strong>
+                    <div>{renderRouteSummary(selectedTransit)}</div>
+                  </div>
+                </div>
+              )}
+              {selectedTransit?.status === "ok" && selectedTransit.manifest && selectedTransit.manifest.length > 0 && (
+                <div className="journey-manifest">
+                  <h4>Public transport journey</h4>
+                  <ol>
+                    {selectedTransit.manifest.map((step, i) => (
+                      <li key={i}>{renderManifestStep(step)}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </>
+          )}
+
           <table>
             <thead>
               <tr>
@@ -162,13 +221,18 @@ export function MatchExplorer() {
               {sorted.map((p) => {
                 const driving = routes[p.id]?.driving;
                 const transit = routes[p.id]?.transit;
+                const full = isPlacementFull(p);
                 return (
                   <tr
                     key={p.id}
                     className={selectedPlacementId === p.id ? "selected-row" : ""}
                     onClick={() => setSelectedPlacementId(p.id)}
                   >
-                    <td>{p.name}{p.requiresDriver && <span className="badge">driver only</span>}</td>
+                    <td>
+                      {p.name}
+                      {p.requiresDriver && <span className="badge">driver only</span>}
+                      {full && <span className="badge badge-full">full</span>}
+                    </td>
                     <td>{p.category}</td>
                     <td>{renderRouteCell(driving)}</td>
                     <td>{renderRouteCell(transit)}</td>
@@ -188,31 +252,6 @@ export function MatchExplorer() {
             </tbody>
           </table>
           {sorted.length === 0 && <p className="hint">No eligible placements for this student.</p>}
-
-          {selectedPlacement && mapPoints && (
-            <div>
-              <div className="filter-row">
-                <label>
-                  Show route by:
-                  <select value={mapMode} onChange={(e) => setMapMode(e.target.value as TravelMode)}>
-                    <option value="driving">Driving</option>
-                    <option value="transit">Public transport</option>
-                  </select>
-                </label>
-              </div>
-              <RouteMap
-                from={mapPoints.from}
-                to={mapPoints.to}
-                geometry={
-                  routes[selectedPlacement.id]?.[mapMode]?.status === "ok"
-                    ? (routes[selectedPlacement.id]![mapMode] as Extract<RouteState, { status: "ok" }>).geometry
-                    : []
-                }
-                fromLabel={student.name}
-                toLabel={selectedPlacement.name}
-              />
-            </div>
-          )}
         </>
       )}
     </div>
@@ -224,4 +263,40 @@ function renderRouteCell(state?: RouteState) {
   if (state.status === "loading") return "…";
   if (state.status === "error") return <span className="text-error">{state.message}</span>;
   return `${formatDuration(state.durationSeconds)} (${formatDistance(state.distanceMeters)})`;
+}
+
+function renderManifestStep(step: ManifestStep) {
+  if (step.mode === "walk") {
+    return (
+      <>
+        Walk {formatDuration(step.durationSeconds)} ({formatDistance(step.distanceMeters)})
+        {step.instructions ? ` — ${step.instructions}` : ""}
+      </>
+    );
+  }
+  return (
+    <>
+      <strong>
+        {step.vehicleType}
+        {step.line ? ` ${step.line}` : ""}
+      </strong>
+      {step.headsign ? ` towards ${step.headsign}` : ""}
+      {step.fromStop || step.toStop ? `: ${step.fromStop ?? "?"} → ${step.toStop ?? "?"}` : ""}
+      {step.stopCount ? ` (${step.stopCount} stop${step.stopCount === 1 ? "" : "s"})` : ""}
+      {" — "}
+      {formatDuration(step.durationSeconds)}
+    </>
+  );
+}
+
+function renderRouteSummary(state?: RouteState) {
+  if (!state) return "—";
+  if (state.status === "loading") return "Looking up…";
+  if (state.status === "error") return <span className="text-error">{state.message}</span>;
+  return (
+    <>
+      {formatDuration(state.durationSeconds)} ({formatDistance(state.distanceMeters)})
+      {state.summary && <div className="hint">{state.summary}</div>}
+    </>
+  );
 }

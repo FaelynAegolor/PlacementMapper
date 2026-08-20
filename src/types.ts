@@ -32,6 +32,19 @@ export interface LatLng {
   lng: number;
 }
 
+export interface ManifestStep {
+  mode: "walk" | "transit";
+  instructions?: string;
+  line?: string;
+  vehicleType?: string;
+  headsign?: string;
+  fromStop?: string;
+  toStop?: string;
+  stopCount?: number;
+  durationSeconds: number;
+  distanceMeters: number;
+}
+
 export interface RouteResult {
   key: string;
   mode: TravelMode;
@@ -39,4 +52,9 @@ export interface RouteResult {
   durationSeconds: number;
   geometry: LatLng[];
   fetchedAt: number;
+  /** e.g. "Bus → Underground" for transit; "Traffic-aware (peak)" or
+   * "Free-flow (no traffic data)" for driving. */
+  summary?: string;
+  /** Step-by-step transit journey, only populated for transit routes. */
+  manifest?: ManifestStep[];
 }

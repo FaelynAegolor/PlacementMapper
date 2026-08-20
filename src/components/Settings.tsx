@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { db, getSetting, setSetting } from "../db";
 import { loadSampleData } from "../lib/sampleData";
+import { toast } from "../lib/toast";
 
 interface Backup {
   students: unknown[];
@@ -26,6 +27,7 @@ export function Settings() {
   async function saveKey() {
     await setSetting("googleApiKey", apiKey.trim());
     setSaved(true);
+    toast("API key saved");
     setTimeout(() => setSaved(false), 1500);
   }
 
@@ -44,6 +46,7 @@ export function Settings() {
     a.download = `placement-mapper-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    toast("Backup downloaded");
   }
 
   async function importData(e: React.ChangeEvent<HTMLInputElement>) {
@@ -75,13 +78,14 @@ export function Settings() {
         ]);
       },
     );
-    alert("Import complete.");
+    toast("Backup imported");
   }
 
   async function handleLoadSampleData() {
     const existing = (await db.students.count()) + (await db.placements.count());
     if (existing > 0 && !confirm("Add sample students and placements alongside your existing data?")) return;
     await loadSampleData();
+    toast("Sample data loaded");
   }
 
   async function handleClearAllData() {
@@ -89,6 +93,7 @@ export function Settings() {
     await db.transaction("rw", [db.students, db.placements, db.assignments], async () => {
       await Promise.all([db.students.clear(), db.placements.clear(), db.assignments.clear()]);
     });
+    toast("All data cleared");
   }
 
   return (
@@ -100,8 +105,8 @@ export function Settings() {
       <section>
         <h3>Sample data</h3>
         <p className="hint">
-          For trying the app out: adds a set of made-up students and placements spread across several UK
-          cities, with real postcodes so routing and maps work properly.
+          For trying the app out: adds 30 made-up students on real residential London postcodes, plus a set
+          of real London hospitals/placements, so routing and maps work properly.
         </p>
         <button onClick={handleLoadSampleData}>Load sample data</button>
         <button className="link-danger" onClick={handleClearAllData}>

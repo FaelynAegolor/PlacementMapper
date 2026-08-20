@@ -4,6 +4,7 @@ import { db } from "../db";
 import { isEligible, setAssignment } from "../lib/assignments";
 import { formatDistance, formatDuration } from "../lib/routing";
 import { suggestAssignments, type Suggestion } from "../lib/suggest";
+import { toast } from "../lib/toast";
 import type { Category, Year } from "../types";
 
 export function SuggestAndAssign() {
@@ -24,6 +25,7 @@ export function SuggestAndAssign() {
     try {
       const result = await suggestAssignments(year, categoryFilter === "all" ? null : categoryFilter);
       setSuggestions(result);
+      toast(`Suggestions ready for ${result.length} student${result.length === 1 ? "" : "s"}`);
     } finally {
       setRunning(false);
     }
@@ -33,15 +35,19 @@ export function SuggestAndAssign() {
     if (!suggestions) return;
     setCommitting(true);
     try {
+      let assignedCount = 0;
       for (const s of suggestions) {
         const placementId = overrides[s.studentId] !== undefined ? overrides[s.studentId] : s.placementId;
         if (!placementId) continue;
         const result = await setAssignment(s.studentId, placementId, year);
-        if (!result.ok) {
+        if (result.ok) {
+          assignedCount++;
+        } else {
           const student = students.find((st) => st.id === s.studentId);
-          alert(`Could not assign ${student?.name ?? s.studentId}: ${result.reason}`);
+          toast(`Could not assign ${student?.name ?? s.studentId}: ${result.reason}`, "error");
         }
       }
+      if (assignedCount > 0) toast(`Committed ${assignedCount} assignment${assignedCount === 1 ? "" : "s"}`);
     } finally {
       setCommitting(false);
     }
