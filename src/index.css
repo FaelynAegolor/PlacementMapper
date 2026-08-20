@@ -1,0 +1,242 @@
+:root {
+  --text: #142524;
+  --text-muted: #5b7371;
+  --bg: #ffffff;
+  --panel-bg: #f4f9f8;
+  --border: #d9e6e4;
+  --accent: #0f766e;
+  --accent-text: #ffffff;
+  --error: #b91c1c;
+  --row-selected: #e6f5f3;
+
+  font: 15px/1.5 "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #dfece9;
+    --text-muted: #8fa7a4;
+    --bg: #0b1615;
+    --panel-bg: #12201f;
+    --border: #223937;
+    --accent: #2dd4bf;
+    --accent-text: #082826;
+    --error: #f87171;
+    --row-selected: #123734;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+.app-header {
+  padding: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  padding: 1rem 0;
+}
+
+.tab {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.tab.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.panel h3 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.25rem;
+}
+
+.panel section:first-of-type h3 {
+  margin-top: 0;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.filter-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+tbody tr.selected-row {
+  background: var(--row-selected);
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  margin-right: 0.4rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.link-danger {
+  background: none;
+  color: var(--error);
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.error-box {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.text-error {
+  color: var(--error);
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text);
+}
+
+.year-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-right: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.map-legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.map-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
