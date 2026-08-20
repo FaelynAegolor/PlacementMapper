@@ -52,6 +52,12 @@ export async function getRoute(
   return record;
 }
 
+export function formatMode(mode: TravelMode | null): string {
+  if (mode === "driving") return "Driving";
+  if (mode === "transit") return "Public transport";
+  return "—";
+}
+
 export function formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes} min`;

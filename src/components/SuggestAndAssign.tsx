@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { db } from "../db";
 import { isEligible, setAssignment } from "../lib/assignments";
-import { formatDistance, formatDuration } from "../lib/routing";
+import { formatDistance, formatDuration, formatMode } from "../lib/routing";
 import { ordinal, suggestAssignments, type Suggestion } from "../lib/suggest";
 import { toast } from "../lib/toast";
 import type { Category, Year } from "../types";
@@ -114,7 +114,7 @@ export function SuggestAndAssign() {
                   <tr key={s.studentId}>
                     <td>{student?.name ?? "—"}</td>
                     <td>{placement ? placement.name : <span className="text-error">{s.reason ?? "Unassigned"}</span>}</td>
-                    <td>{s.mode ?? "—"}</td>
+                    <td>{formatMode(s.mode)}</td>
                     <td>
                       {s.durationSeconds != null && s.distanceMeters != null
                         ? `${formatDuration(s.durationSeconds)} (${formatDistance(s.distanceMeters)})`

@@ -149,6 +149,15 @@ td {
   border-bottom: 1px solid var(--border);
 }
 
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable-th:hover {
+  color: var(--accent);
+}
+
 tbody tr:hover {
   background: color-mix(in srgb, var(--border) 30%, transparent);
 }
@@ -313,6 +322,56 @@ select:focus-visible {
 
 .journey-manifest li + li {
   margin-top: 0.35rem;
+}
+
+.mode-badge-row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--text);
+}
+
+.mode-bus {
+  background: color-mix(in srgb, #dc241f 18%, transparent);
+  color: #dc241f;
+}
+
+.mode-underground {
+  background: color-mix(in srgb, #0019a8 18%, transparent);
+  color: #2354e0;
+}
+
+.mode-train {
+  background: color-mix(in srgb, #00782a 18%, transparent);
+  color: #1a9c47;
+}
+
+.mode-tram {
+  background: color-mix(in srgb, #7c3aed 18%, transparent);
+  color: #7c3aed;
+}
+
+.mode-ferry {
+  background: color-mix(in srgb, #0891b2 18%, transparent);
+  color: #0891b2;
+}
+
+.mode-walk {
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  color: var(--text-muted);
 }
 
 .year-checkbox {

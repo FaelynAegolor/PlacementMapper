@@ -147,13 +147,6 @@ export function MatchExplorer() {
             <option value="adult">Adult</option>
           </select>
         </label>
-        <label>
-          Sort by:
-          <select value={sortMode} onChange={(e) => setSortMode(e.target.value as TravelMode)}>
-            <option value="driving">Driving time</option>
-            <option value="transit">Public transport time</option>
-          </select>
-        </label>
       </div>
 
       {student && (
@@ -187,7 +180,7 @@ export function MatchExplorer() {
                   <i style={{ background: "#b45309" }} /> Adult placement
                 </span>
                 <span>— Driving route</span>
-                <span>┄ Transit route</span>
+                <span>┄ Public transport route</span>
               </div>
               {selectedPlacement && (
                 <div className="route-summary-row">
@@ -219,8 +212,12 @@ export function MatchExplorer() {
               <tr>
                 <th>Placement</th>
                 <th>Category</th>
-                <th>Driving{sortMode === "driving" && " ▲"}</th>
-                <th>Transit{sortMode === "transit" && " ▲"}</th>
+                <th className="sortable-th" onClick={() => setSortMode("driving")}>
+                  Driving{sortMode === "driving" && " ▲"}
+                </th>
+                <th className="sortable-th" onClick={() => setSortMode("transit")}>
+                  Public transport{sortMode === "transit" && " ▲"}
+                </th>
                 <th></th>
               </tr>
             </thead>
@@ -272,21 +269,50 @@ function renderRouteCell(state?: RouteState) {
   return `${formatDuration(state.durationSeconds)} (${formatDistance(state.distanceMeters)})`;
 }
 
+const VEHICLE_ICONS: Record<string, string> = {
+  Bus: "🚌",
+  Coach: "🚍",
+  "Shared taxi": "🚕",
+  Underground: "🚇",
+  Tram: "🚋",
+  Monorail: "🚝",
+  Train: "🚆",
+  Ferry: "⛴️",
+  "Cable car": "🚡",
+  Funicular: "🚞",
+  "Public transport": "🚏",
+};
+
+const VEHICLE_BADGE_CLASSES: Record<string, string> = {
+  Bus: "mode-badge mode-bus",
+  Coach: "mode-badge mode-bus",
+  "Shared taxi": "mode-badge mode-bus",
+  Underground: "mode-badge mode-underground",
+  Tram: "mode-badge mode-tram",
+  Monorail: "mode-badge mode-tram",
+  Train: "mode-badge mode-train",
+  Ferry: "mode-badge mode-ferry",
+  "Cable car": "mode-badge mode-ferry",
+  Funicular: "mode-badge mode-ferry",
+};
+
 function renderManifestStep(step: ManifestStep) {
   if (step.mode === "walk") {
     return (
       <>
-        Walk {formatDuration(step.durationSeconds)} ({formatDistance(step.distanceMeters)})
+        <span className="mode-badge mode-walk">🚶 Walk</span>{" "}
+        {formatDuration(step.durationSeconds)} ({formatDistance(step.distanceMeters)})
         {step.instructions ? ` — ${step.instructions}` : ""}
       </>
     );
   }
+  const label = step.vehicleType ?? "Transit";
   return (
     <>
-      <strong>
-        {step.vehicleType}
+      <span className={VEHICLE_BADGE_CLASSES[label] ?? "mode-badge"}>
+        {VEHICLE_ICONS[label] ?? "🚏"} {label}
         {step.line ? ` ${step.line}` : ""}
-      </strong>
+      </span>
       {step.headsign ? ` towards ${step.headsign}` : ""}
       {step.fromStop || step.toStop ? `: ${step.fromStop ?? "?"} → ${step.toStop ?? "?"}` : ""}
       {step.stopCount ? ` (${step.stopCount} stop${step.stopCount === 1 ? "" : "s"})` : ""}
@@ -300,10 +326,25 @@ function renderRouteSummary(state?: RouteState) {
   if (!state) return "—";
   if (state.status === "loading") return "Looking up…";
   if (state.status === "error") return <span className="text-error">{state.message}</span>;
+
+  const transitLabels = Array.from(
+    new Set((state.manifest ?? []).filter((s) => s.mode === "transit").map((s) => s.vehicleType ?? "Transit")),
+  );
+
   return (
     <>
       {formatDuration(state.durationSeconds)} ({formatDistance(state.distanceMeters)})
-      {state.summary && <div className="hint">{state.summary}</div>}
+      {transitLabels.length > 0 ? (
+        <div className="mode-badge-row">
+          {transitLabels.map((label) => (
+            <span key={label} className={VEHICLE_BADGE_CLASSES[label] ?? "mode-badge"}>
+              {VEHICLE_ICONS[label] ?? "🚏"} {label}
+            </span>
+          ))}
+        </div>
+      ) : (
+        state.summary && <div className="hint">{state.summary}</div>
+      )}
     </>
   );
 }

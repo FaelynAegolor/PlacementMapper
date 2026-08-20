@@ -33,12 +33,24 @@ export class MissingApiKeyError extends Error {
 
 const VEHICLE_LABELS: Record<string, string> = {
   BUS: "Bus",
+  INTERCITY_BUS: "Coach",
+  TROLLEYBUS: "Bus",
+  SHARE_TAXI: "Shared taxi",
   SUBWAY: "Underground",
-  TRAIN: "Train",
-  RAIL: "Train",
+  METRO_RAIL: "Underground",
   LIGHT_RAIL: "Tram",
   TRAM: "Tram",
+  MONORAIL: "Monorail",
+  RAIL: "Train",
+  HEAVY_RAIL: "Train",
+  COMMUTER_TRAIN: "Train",
+  HIGH_SPEED_TRAIN: "Train",
+  LONG_DISTANCE_TRAIN: "Train",
   FERRY: "Ferry",
+  CABLE_CAR: "Cable car",
+  GONDOLA_LIFT: "Cable car",
+  FUNICULAR: "Funicular",
+  OTHER: "Public transport",
 };
 
 interface RawStep {

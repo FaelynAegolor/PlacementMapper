@@ -9,6 +9,10 @@ export function StudentsTable() {
   const students = useLiveQuery(() => db.students.orderBy("name").toArray(), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  // The table is live-sorted by name, so committing every keystroke would
+  // re-sort (and jump focus) mid-edit. Buffer name edits locally and only
+  // write through on blur.
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -25,6 +29,16 @@ export function StudentsTable() {
 
   async function updateField(id: string, patch: Partial<{ name: string; postcode: string; year: Year; isDriver: boolean }>) {
     await db.students.update(id, patch);
+  }
+
+  function commitName(id: string) {
+    const draft = nameDrafts[id];
+    setNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    if (draft !== undefined) updateField(id, { name: draft });
   }
 
   async function remove(id: string, name: string) {
@@ -86,8 +100,10 @@ export function StudentsTable() {
             <tr key={s.id}>
               <td>
                 <input
-                  value={s.name}
-                  onChange={(e) => updateField(s.id, { name: e.target.value })}
+                  value={nameDrafts[s.id] ?? s.name}
+                  onChange={(e) => setNameDrafts((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                  onBlur={() => commitName(s.id)}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                 />
               </td>
               <td>

@@ -11,6 +11,10 @@ export function PlacementsTable() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
+  // The table is live-sorted by name, so committing every keystroke would
+  // re-sort (and jump focus) mid-edit. Buffer name edits locally and only
+  // write through on blur.
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -37,6 +41,16 @@ export function PlacementsTable() {
     }>,
   ) {
     await db.placements.update(id, patch);
+  }
+
+  function commitName(id: string) {
+    const draft = nameDrafts[id];
+    setNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    if (draft !== undefined) updateField(id, { name: draft });
   }
 
   async function remove(id: string, name: string) {
@@ -112,7 +126,12 @@ export function PlacementsTable() {
           {filtered?.map((p) => (
             <tr key={p.id}>
               <td>
-                <input value={p.name} onChange={(e) => updateField(p.id, { name: e.target.value })} />
+                <input
+                  value={nameDrafts[p.id] ?? p.name}
+                  onChange={(e) => setNameDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                  onBlur={() => commitName(p.id)}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                />
               </td>
               <td>
                 <input value={p.postcode} onChange={(e) => updateField(p.id, { postcode: e.target.value })} />
