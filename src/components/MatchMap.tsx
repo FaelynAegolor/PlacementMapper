@@ -1,5 +1,6 @@
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
-import type { LatLng, Placement } from "../types";
+import { placesAvailableLabel } from "../lib/assignments";
+import type { Assignment, LatLng, Placement } from "../types";
 import {
   ADULT_COLOR,
   DRIVING_ROUTE_COLOR,
@@ -14,6 +15,7 @@ interface MatchMapProps {
   studentName: string;
   studentPoint: LatLng;
   placements: { placement: Placement; point: LatLng }[];
+  assignments: Assignment[];
   selectedPlacementId: string | null;
   onSelect: (id: string) => void;
   drivingGeometry: LatLng[] | null;
@@ -24,6 +26,7 @@ export function MatchMap({
   studentName,
   studentPoint,
   placements,
+  assignments,
   selectedPlacementId,
   onSelect,
   drivingGeometry,
@@ -53,7 +56,11 @@ export function MatchMap({
           )}
           eventHandlers={{ click: () => onSelect(placement.id) }}
         >
-          <Popup>{placement.name}</Popup>
+          <Popup>
+            <strong>{placement.name}</strong>
+            <br />
+            {placesAvailableLabel(placement, assignments)}
+          </Popup>
         </Marker>
       ))}
       {drivingGeometry && drivingGeometry.length > 0 && (

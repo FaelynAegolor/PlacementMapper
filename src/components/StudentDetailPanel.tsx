@@ -2,12 +2,12 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { db } from "../db";
 import { isEligible, setAssignment } from "../lib/assignments";
-import { formatDistance, formatDuration, getRoute, MissingApiKeyError } from "../lib/routing";
-import { useGeocodedPoints } from "../lib/useGeocodedPoints";
 import { normalisePostcode } from "../lib/geocode";
+import { formatDistance, formatDuration, getRoute, MissingApiKeyError } from "../lib/routing";
+import { toast } from "../lib/toast";
+import { useGeocodedPoints } from "../lib/useGeocodedPoints";
 import type { Category, LatLng, ManifestStep, Placement, TravelMode } from "../types";
 import { MatchMap } from "./MatchMap";
-import { toast } from "../lib/toast";
 
 type RouteState =
   | { status: "loading" }
@@ -21,13 +21,16 @@ type RouteState =
       manifest?: ManifestStep[];
     };
 
-export function MatchExplorer() {
-  const students = useLiveQuery(() => db.students.orderBy("name").toArray(), []) ?? [];
+interface StudentDetailPanelProps {
+  studentId: string;
+  categoryFilter: Category | "all";
+}
+
+export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailPanelProps) {
+  const students = useLiveQuery(() => db.students.toArray(), []) ?? [];
   const placements = useLiveQuery(() => db.placements.toArray(), []) ?? [];
   const assignments = useLiveQuery(() => db.assignments.toArray(), []) ?? [];
 
-  const [studentId, setStudentId] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [sortMode, setSortMode] = useState<TravelMode>("driving");
   const [routes, setRoutes] = useState<Record<string, { driving?: RouteState; transit?: RouteState }>>({});
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
@@ -84,6 +87,8 @@ export function MatchExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, categoryFilter]);
 
+  if (!student) return null;
+
   const sorted = [...eligible].sort((a, b) => {
     const ra = routes[a.id]?.[sortMode];
     const rb = routes[b.id]?.[sortMode];
@@ -93,7 +98,7 @@ export function MatchExplorer() {
   });
 
   const selectedPlacement = placements.find((p) => p.id === selectedPlacementId) ?? null;
-  const studentPoint = student ? mapPoints.get(normalisePostcode(student.postcode)) : undefined;
+  const studentPoint = mapPoints.get(normalisePostcode(student.postcode));
   const mapPlacements = eligible
     .map((placement) => {
       const point = mapPoints.get(normalisePostcode(placement.postcode));
@@ -120,144 +125,107 @@ export function MatchExplorer() {
     else toast(result.reason ?? "Could not assign", "error");
   }
 
-  const currentAssignment = student ? assignments.find((a) => a.studentId === student.id && a.year === student.year) : undefined;
-
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>Manually Assign</h2>
-      </div>
-      <div className="filter-row">
-        <label>
-          Student:
-          <select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-            <option value="">Select a student…</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} (Year {s.year}{s.isDriver ? ", driver" : ""})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Category:
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as Category | "all")}>
-            <option value="all">All</option>
-            <option value="paediatric">Paediatric</option>
-            <option value="adult">Adult</option>
-          </select>
-        </label>
-      </div>
-
-      {student && (
+    <div className="student-detail-panel">
+      {studentPoint && mapPlacements.length > 0 && (
         <>
-          {currentAssignment && (
-            <p className="hint">
-              Currently assigned (year {student.year}):{" "}
-              <strong>{placements.find((p) => p.id === currentAssignment.placementId)?.name ?? "—"}</strong>
-            </p>
-          )}
-
-          {studentPoint && mapPlacements.length > 0 && (
-            <>
-              <MatchMap
-                studentName={student.name}
-                studentPoint={studentPoint}
-                placements={mapPlacements}
-                selectedPlacementId={selectedPlacementId}
-                onSelect={setSelectedPlacementId}
-                drivingGeometry={selectedDriving?.status === "ok" ? selectedDriving.geometry : null}
-                transitGeometry={selectedTransit?.status === "ok" ? selectedTransit.geometry : null}
-              />
-              <div className="map-legend">
-                <span>
-                  <i style={{ background: "#0f766e" }} /> Student
-                </span>
-                <span>
-                  <i style={{ background: "#2563eb" }} /> Paediatric placement
-                </span>
-                <span>
-                  <i style={{ background: "#b45309" }} /> Adult placement
-                </span>
-                <span>— Driving route</span>
-                <span>┄ Public transport route</span>
+          <MatchMap
+            studentName={student.name}
+            studentPoint={studentPoint}
+            placements={mapPlacements}
+            assignments={assignments}
+            selectedPlacementId={selectedPlacementId}
+            onSelect={setSelectedPlacementId}
+            drivingGeometry={selectedDriving?.status === "ok" ? selectedDriving.geometry : null}
+            transitGeometry={selectedTransit?.status === "ok" ? selectedTransit.geometry : null}
+          />
+          <div className="map-legend">
+            <span>
+              <i style={{ background: "#0f766e" }} /> Student
+            </span>
+            <span>
+              <i style={{ background: "#2563eb" }} /> Paediatric placement
+            </span>
+            <span>
+              <i style={{ background: "#b45309" }} /> Adult placement
+            </span>
+            <span>— Driving route</span>
+            <span>┄ Public transport route</span>
+          </div>
+          {selectedPlacement && (
+            <div className="route-summary-row">
+              <div className="route-summary-tile">
+                <strong>Driving</strong>
+                <div>{renderRouteSummary(selectedDriving)}</div>
               </div>
-              {selectedPlacement && (
-                <div className="route-summary-row">
-                  <div className="route-summary-tile">
-                    <strong>Driving</strong>
-                    <div>{renderRouteSummary(selectedDriving)}</div>
-                  </div>
-                  <div className="route-summary-tile">
-                    <strong>Public transport</strong>
-                    <div>{renderRouteSummary(selectedTransit)}</div>
-                  </div>
-                </div>
-              )}
-              {selectedTransit?.status === "ok" && selectedTransit.manifest && selectedTransit.manifest.length > 0 && (
-                <div className="journey-manifest">
-                  <h4>Public transport journey</h4>
-                  <ol>
-                    {selectedTransit.manifest.map((step, i) => (
-                      <li key={i}>{renderManifestStep(step)}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-            </>
+              <div className="route-summary-tile">
+                <strong>Public transport</strong>
+                <div>{renderRouteSummary(selectedTransit)}</div>
+              </div>
+            </div>
           )}
-
-          <table>
-            <thead>
-              <tr>
-                <th>Placement</th>
-                <th>Category</th>
-                <th className="sortable-th" onClick={() => setSortMode("driving")}>
-                  Driving{sortMode === "driving" && " ▲"}
-                </th>
-                <th className="sortable-th" onClick={() => setSortMode("transit")}>
-                  Public transport{sortMode === "transit" && " ▲"}
-                </th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((p) => {
-                const driving = routes[p.id]?.driving;
-                const transit = routes[p.id]?.transit;
-                const full = isPlacementFull(p);
-                return (
-                  <tr
-                    key={p.id}
-                    className={selectedPlacementId === p.id ? "selected-row" : ""}
-                    onClick={() => setSelectedPlacementId(p.id)}
-                  >
-                    <td>
-                      {p.name}
-                      {p.requiresDriver && <span className="badge">driver only</span>}
-                      {full && <span className="badge badge-full">full</span>}
-                    </td>
-                    <td>{p.category}</td>
-                    <td>{renderRouteCell(driving)}</td>
-                    <td>{renderRouteCell(transit)}</td>
-                    <td>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          assign(p);
-                        }}
-                      >
-                        Assign
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {sorted.length === 0 && <p className="hint">No eligible placements for this student.</p>}
+          {selectedTransit?.status === "ok" && selectedTransit.manifest && selectedTransit.manifest.length > 0 && (
+            <div className="journey-manifest">
+              <h4>Public transport journey</h4>
+              <ol>
+                {selectedTransit.manifest.map((step, i) => (
+                  <li key={i}>{renderManifestStep(step)}</li>
+                ))}
+              </ol>
+            </div>
+          )}
         </>
       )}
+
+      <table>
+        <thead>
+          <tr>
+            <th>Placement</th>
+            <th>Category</th>
+            <th className="sortable-th" onClick={() => setSortMode("driving")}>
+              Driving{sortMode === "driving" && " ▲"}
+            </th>
+            <th className="sortable-th" onClick={() => setSortMode("transit")}>
+              Public transport{sortMode === "transit" && " ▲"}
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((p) => {
+            const driving = routes[p.id]?.driving;
+            const transit = routes[p.id]?.transit;
+            const full = isPlacementFull(p);
+            return (
+              <tr
+                key={p.id}
+                className={selectedPlacementId === p.id ? "selected-row" : ""}
+                onClick={() => setSelectedPlacementId(p.id)}
+              >
+                <td>
+                  {p.name}
+                  {p.requiresDriver && <span className="badge">driver only</span>}
+                  {full && <span className="badge badge-full">full</span>}
+                </td>
+                <td>{p.category}</td>
+                <td>{renderRouteCell(driving)}</td>
+                <td>{renderRouteCell(transit)}</td>
+                <td>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      assign(p);
+                    }}
+                  >
+                    Assign
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {sorted.length === 0 && <p className="hint">No eligible placements for this student.</p>}
     </div>
   );
 }

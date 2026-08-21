@@ -27,6 +27,12 @@ export interface Assignment {
   year: Year;
 }
 
+export interface Lecturer {
+  id: string;
+  name: string;
+  postcode: string;
+}
+
 export interface LatLng {
   lat: number;
   lng: number;

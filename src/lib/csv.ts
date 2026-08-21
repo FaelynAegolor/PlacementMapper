@@ -1,6 +1,6 @@
 import Papa from "papaparse";
-import { SAMPLE_PLACEMENTS, SAMPLE_STUDENTS } from "./sampleData";
-import type { Category, Placement, Student, Year } from "../types";
+import { SAMPLE_LECTURERS, SAMPLE_PLACEMENTS, SAMPLE_STUDENTS } from "./sampleData";
+import type { Category, Lecturer, Placement, Student, Year } from "../types";
 
 export interface ImportResult<T> {
   rows: T[];
@@ -84,6 +84,26 @@ export async function importPlacementsCsv(file: File): Promise<ImportResult<Plac
   return { rows, errors };
 }
 
+export async function importLecturersCsv(file: File): Promise<ImportResult<Lecturer>> {
+  const raw = await parseCsv(file);
+  const rows: Lecturer[] = [];
+  const errors: string[] = [];
+
+  raw.forEach((row, i) => {
+    const line = i + 2;
+    const name = row.name?.trim();
+    const postcode = row.postcode?.trim();
+
+    if (!name) return void errors.push(`Line ${line}: missing name`);
+    if (!postcode || !POSTCODE_RE.test(postcode))
+      return void errors.push(`Line ${line}: invalid postcode "${row.postcode}"`);
+
+    rows.push({ id: crypto.randomUUID(), name, postcode });
+  });
+
+  return { rows, errors };
+}
+
 function downloadCsv(filename: string, rows: Record<string, string | number | boolean>[]) {
   const csv = Papa.unparse(rows);
   const blob = new Blob([csv], { type: "text/csv" });
@@ -118,5 +138,12 @@ export function downloadSamplePlacementsCsv() {
       requiresDriver: p.requiresDriver,
       capacity: p.capacity ?? "",
     })),
+  );
+}
+
+export function downloadSampleLecturersCsv() {
+  downloadCsv(
+    "lecturers-sample.csv",
+    SAMPLE_LECTURERS.map((l) => ({ name: l.name, postcode: l.postcode })),
   );
 }

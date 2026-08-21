@@ -1,10 +1,12 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import { db } from "../db";
+import { useEffect, useState } from "react";
+import { MapContainer, Marker, Polygon, Popup, TileLayer } from "react-leaflet";
+import { db, getSetting } from "../db";
+import { placesAvailableLabel } from "../lib/assignments";
 import { normalisePostcode } from "../lib/geocode";
+import { getCachedIsochrone } from "../lib/isochrone";
 import { useGeocodedPoints } from "../lib/useGeocodedPoints";
-import type { Category, Year } from "../types";
+import type { Category, LatLng, Year } from "../types";
 import { ADULT_COLOR, dotIcon, PAEDIATRIC_COLOR, STUDENT_COLOR } from "./mapIcons";
 import { FitBounds } from "./FitBounds";
 
@@ -13,6 +15,22 @@ const ALL_YEARS: Year[] = [1, 2, 3];
 export function OverviewMap() {
   const students = useLiveQuery(() => db.students.toArray(), []) ?? [];
   const placements = useLiveQuery(() => db.placements.toArray(), []) ?? [];
+  const assignments = useLiveQuery(() => db.assignments.toArray(), []) ?? [];
+
+  const [boundary, setBoundary] = useState<LatLng[] | null>(null);
+  const [maxMinutes, setMaxMinutes] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const basePostcode = await getSetting("basePostcode");
+      const mins = await getSetting("baseMaxMinutes");
+      if (!basePostcode || !mins) return;
+      const minutes = Number(mins);
+      setMaxMinutes(minutes);
+      const points = await getCachedIsochrone(basePostcode, minutes, "transit");
+      setBoundary(points);
+    })();
+  }, []);
 
   const [years, setYears] = useState<Set<Year>>(new Set(ALL_YEARS));
   const [category, setCategory] = useState<Category | "all">("all");
@@ -96,6 +114,12 @@ export function OverviewMap() {
           <i style={{ background: ADULT_COLOR }} /> Adult placement
         </span>
         <span>Dashed border = requires a driver</span>
+        {boundary && boundary.length > 0 && (
+          <span>
+            <i style={{ background: "transparent", border: "2px solid #7c3aed" }} /> ~{maxMinutes} min of base
+            location (public transport, approximate)
+          </span>
+        )}
       </div>
 
       <MapContainer center={[54.5, -3]} zoom={6} style={{ height: "60vh", width: "100%" }}>
@@ -103,6 +127,12 @@ export function OverviewMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {boundary && boundary.length > 0 && (
+          <Polygon
+            positions={boundary.map((p) => [p.lat, p.lng])}
+            pathOptions={{ color: "#7c3aed", weight: 2, fillColor: "#7c3aed", fillOpacity: 0.08 }}
+          />
+        )}
         {showStudents &&
           visibleStudents.map((s) => {
             const pos = points.get(normalisePostcode(s.postcode));
@@ -136,6 +166,8 @@ export function OverviewMap() {
                       Requires a driver
                     </>
                   )}
+                  <br />
+                  {placesAvailableLabel(p, assignments)}
                   <br />
                   {p.postcode}
                 </Popup>

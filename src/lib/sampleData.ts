@@ -1,5 +1,5 @@
 import { db } from "../db";
-import type { Placement, Student } from "../types";
+import type { Lecturer, Placement, Student } from "../types";
 
 export const SAMPLE_STUDENTS: Omit<Student, "id">[] = [
   { name: "Oliver Bennett", postcode: "E8 1EA", year: 1, isDriver: true },
@@ -221,7 +221,16 @@ export const SAMPLE_PLACEMENTS: Omit<Placement, "id">[] = [
   },
 ];
 
+export const SAMPLE_LECTURERS: Omit<Lecturer, "id">[] = [
+  { name: "Dr. Priya Anand", postcode: "SE9 2UG" },
+  { name: "Dr. Michael Foster", postcode: "BR3 3BX" },
+  { name: "Dr. Sarah Whitmore", postcode: "SE3 7SE" },
+  { name: "Dr. James Okoro", postcode: "SE18 6HQ" },
+  { name: "Dr. Elena Marchetti", postcode: "DA15 9AB" },
+];
+
 export async function loadSampleData(): Promise<void> {
   await db.students.bulkAdd(SAMPLE_STUDENTS.map((s) => ({ ...s, id: crypto.randomUUID() })));
   await db.placements.bulkAdd(SAMPLE_PLACEMENTS.map((p) => ({ ...p, id: crypto.randomUUID() })));
+  await db.lecturers.bulkAdd(SAMPLE_LECTURERS.map((l) => ({ ...l, id: crypto.randomUUID() })));
 }

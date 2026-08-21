@@ -1,5 +1,16 @@
 import { db } from "../db";
-import type { Category, Placement, Student, Year } from "../types";
+import type { Assignment, Category, Placement, Student, Year } from "../types";
+
+export function placesAvailableLabel(placement: Placement, assignments: Assignment[]): string {
+  if (placement.capacity == null) return "Unlimited places";
+  let total = 0;
+  let filled = 0;
+  for (const year of placement.yearsOffered) {
+    total += placement.capacity;
+    filled += assignments.filter((a) => a.placementId === placement.id && a.year === year).length;
+  }
+  return `${total - filled} of ${total} places available`;
+}
 
 export function isEligible(
   student: Student,

@@ -1,20 +1,20 @@
 import { useState } from "react";
-import { MatchExplorer } from "./components/MatchExplorer";
+import { AssignPlacements } from "./components/AssignPlacements";
+import { LecturersTable } from "./components/LecturersTable";
 import { OverviewMap } from "./components/OverviewMap";
 import { PlacementsTable } from "./components/PlacementsTable";
 import { Settings } from "./components/Settings";
 import { StatusDashboard } from "./components/StatusDashboard";
 import { StudentsTable } from "./components/StudentsTable";
-import { SuggestAndAssign } from "./components/SuggestAndAssign";
 import { ToastHost } from "./components/ToastHost";
 
 const TABS = [
   { id: "status", label: "Status", render: () => <StatusDashboard /> },
   { id: "students", label: "Students", render: () => <StudentsTable /> },
   { id: "placements", label: "Placements", render: () => <PlacementsTable /> },
+  { id: "lecturers", label: "Lecturers", render: () => <LecturersTable /> },
   { id: "map", label: "Overview Map", render: () => <OverviewMap /> },
-  { id: "suggest", label: "Auto Assign", render: () => <SuggestAndAssign /> },
-  { id: "match", label: "Manually Assign", render: () => <MatchExplorer /> },
+  { id: "assign", label: "Assign Placements", render: () => <AssignPlacements /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
 ] as const;
 

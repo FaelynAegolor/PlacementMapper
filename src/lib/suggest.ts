@@ -18,6 +18,10 @@ export interface Suggestion {
   /** Human-readable explanation of why this placement was chosen. */
   explanation?: string;
   reason?: string;
+  /** "committed" = already has a saved assignment for this year (left
+   * untouched by re-runs); "suggested" = a fresh proposal; "unassigned" =
+   * no viable placement found. */
+  status: "committed" | "suggested" | "unassigned";
 }
 
 export function ordinal(n: number): string {
@@ -46,11 +50,38 @@ export async function suggestAssignments(
     for (const a of otherAssignments) excludedForStudent.set(a.studentId, a.placementId);
   }
 
+  // Students already committed for this year are left untouched by a
+  // re-run, and their slot is subtracted from capacity up front so new
+  // suggestions correctly avoid placements that are already filled.
+  const thisYearAssignments = await db.assignments.where("year").equals(year).toArray();
+  const committedByStudent = new Map(thisYearAssignments.map((a) => [a.studentId, a]));
+  const placementCounts = new Map<string, number>();
+  for (const a of thisYearAssignments) {
+    placementCounts.set(a.placementId, (placementCounts.get(a.placementId) ?? 0) + 1);
+  }
+
   const placementById = new Map<string, Placement>(placements.map((p) => [p.id, p]));
+  const suggestions = new Map<string, Suggestion>();
+  for (const student of students) {
+    const committed = committedByStudent.get(student.id);
+    if (committed) {
+      suggestions.set(student.id, {
+        studentId: student.id,
+        placementId: committed.placementId,
+        mode: null,
+        durationSeconds: null,
+        distanceMeters: null,
+        rank: null,
+        status: "committed",
+      });
+    }
+  }
+
+  const toSuggest = students.filter((s) => !committedByStudent.has(s.id));
 
   // Build eligible pairs, per student.
   const eligibleByStudent = new Map<string, Placement[]>();
-  for (const student of students) {
+  for (const student of toSuggest) {
     const excluded = excludedForStudent.get(student.id);
     const eligible = placements.filter(
       (p) => isEligible(student, p, categoryFilter) && p.id !== excluded,
@@ -61,7 +92,7 @@ export async function suggestAssignments(
   // Geocode everything up front (cached, so cheap on repeat runs).
   const geocodeErrors = new Map<string, string>();
   const studentLatLng = new Map<string, { lat: number; lng: number }>();
-  for (const student of students) {
+  for (const student of toSuggest) {
     try {
       studentLatLng.set(student.id, await geocodePostcode(student.postcode));
     } catch {
@@ -79,7 +110,7 @@ export async function suggestAssignments(
 
   // Pre-filter to nearest N candidates per student by straight-line distance.
   const candidates: Candidate[] = [];
-  for (const student of students) {
+  for (const student of toSuggest) {
     const from = studentLatLng.get(student.id);
     if (!from) continue;
     const eligible = eligibleByStudent.get(student.id) ?? [];
@@ -99,7 +130,7 @@ export async function suggestAssignments(
     candidates.push(...withDistance);
   }
 
-  const studentById = new Map<string, Student>(students.map((s) => [s.id, s]));
+  const studentById = new Map<string, Student>(toSuggest.map((s) => [s.id, s]));
 
   // Fetch real travel times for the shortlisted candidates.
   interface RankedCandidate extends Candidate {
@@ -132,11 +163,10 @@ export async function suggestAssignments(
   ranked.sort((a, b) => a.durationSeconds - b.durationSeconds);
 
   // Greedily assign shortest-travel-time first, respecting one assignment
-  // per student and placement capacity for this year. Track which closer
+  // per student and placement capacity for this year (placementCounts was
+  // seeded above from already-committed assignments). Track which closer
   // candidates were skipped (and why) so the choice can be explained.
   const assignedStudents = new Set<string>();
-  const placementCounts = new Map<string, number>();
-  const suggestions = new Map<string, Suggestion>();
   const skippedFull = new Map<string, string[]>(); // studentId -> placement names skipped as full
 
   for (const candidate of ranked) {
@@ -169,11 +199,12 @@ export async function suggestAssignments(
       distanceMeters: candidate.distanceMeters,
       rank,
       explanation,
+      status: "suggested",
     });
   }
 
   // Fill in anyone left unassigned, with a reason.
-  for (const student of students) {
+  for (const student of toSuggest) {
     if (suggestions.has(student.id)) continue;
     const geocodeError = geocodeErrors.get(student.id);
     const hadEligible = (eligibleByStudent.get(student.id) ?? []).length > 0;
@@ -200,6 +231,7 @@ export async function suggestAssignments(
       durationSeconds: null,
       distanceMeters: null,
       rank: null,
+      status: "unassigned",
       reason,
     });
   }

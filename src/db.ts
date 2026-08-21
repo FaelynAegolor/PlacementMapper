@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Assignment, LatLng, Placement, RouteResult, Student } from "./types";
+import type { Assignment, LatLng, Lecturer, Placement, RouteResult, Student } from "./types";
 
 interface GeocodeEntry {
   postcode: string;
@@ -11,6 +11,21 @@ interface SettingEntry {
   value: string;
 }
 
+export interface IsochroneEntry {
+  key: string;
+  points: LatLng[];
+  computedAt: number;
+}
+
+const STORES_V1 = {
+  students: "id, name, year, isDriver",
+  placements: "id, name, category, requiresDriver",
+  assignments: "id, studentId, placementId, year, [studentId+year]",
+  geocodeCache: "postcode",
+  routeCache: "key, mode",
+  settings: "key",
+};
+
 class PlacementMapperDB extends Dexie {
   students!: Table<Student, string>;
   placements!: Table<Placement, string>;
@@ -18,16 +33,16 @@ class PlacementMapperDB extends Dexie {
   geocodeCache!: Table<GeocodeEntry, string>;
   routeCache!: Table<RouteResult, string>;
   settings!: Table<SettingEntry, string>;
+  lecturers!: Table<Lecturer, string>;
+  isochroneCache!: Table<IsochroneEntry, string>;
 
   constructor() {
     super("placement-mapper");
-    this.version(1).stores({
-      students: "id, name, year, isDriver",
-      placements: "id, name, category, requiresDriver",
-      assignments: "id, studentId, placementId, year, [studentId+year]",
-      geocodeCache: "postcode",
-      routeCache: "key, mode",
-      settings: "key",
+    this.version(1).stores(STORES_V1);
+    this.version(2).stores({
+      ...STORES_V1,
+      lecturers: "id, name",
+      isochroneCache: "key",
     });
   }
 }
