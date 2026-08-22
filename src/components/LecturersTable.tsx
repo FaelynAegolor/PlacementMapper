@@ -2,8 +2,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
 import { downloadSampleLecturersCsv, importLecturersCsv } from "../lib/csv";
-import { allocateLecturers, type LecturerAllocation } from "../lib/lecturerAllocation";
-import { formatDistance } from "../lib/routing";
 import { toast } from "../lib/toast";
 
 export function LecturersTable() {
@@ -11,8 +9,6 @@ export function LecturersTable() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
-  const [allocation, setAllocation] = useState<LecturerAllocation[] | null>(null);
-  const [allocating, setAllocating] = useState(false);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -51,18 +47,6 @@ export function LecturersTable() {
     toast("Lecturer added");
   }
 
-  async function runAllocation() {
-    setAllocating(true);
-    try {
-      const result = await allocateLecturers();
-      setAllocation(result);
-      const totalPlacements = result.reduce((sum, r) => sum + r.placements.length, 0);
-      toast(`Allocated ${totalPlacements} in-use placement${totalPlacements === 1 ? "" : "s"} across ${result.length} lecturer${result.length === 1 ? "" : "s"}`);
-    } finally {
-      setAllocating(false);
-    }
-  }
-
   return (
     <div className="panel">
       <div className="panel-header">
@@ -76,7 +60,7 @@ export function LecturersTable() {
       </div>
       <p className="hint">
         CSV columns: <code>name, postcode</code> (home postcode, used to find each lecturer's nearest
-        placements).
+        placements). See the Lecturer Allocation tab once placements have students assigned.
       </p>
       {importErrors.length > 0 && (
         <div className="error-box">
@@ -117,47 +101,6 @@ export function LecturersTable() {
         </tbody>
       </table>
       {lecturers?.length === 0 && <p className="hint">No lecturers yet — add one or import a CSV.</p>}
-
-      <h3>Link lecturer allocation</h3>
-      <p className="hint">
-        Groups every placement that currently has at least one student assigned by proximity, giving each
-        lecturer the nearest ones — so no one travels further than they need to.
-      </p>
-      <button onClick={runAllocation} disabled={allocating || !lecturers?.length}>
-        {allocating ? "Allocating…" : "Allocate placements to lecturers"}
-      </button>
-
-      {allocation && (
-        <div className="year-columns">
-          {allocation.map(({ lecturer, placements }) => (
-            <div className="year-column" key={lecturer.id}>
-              <h3>
-                {lecturer.name} <span className="hint">({placements.length})</span>
-              </h3>
-              {placements.length === 0 ? (
-                <p className="hint">No placements allocated.</p>
-              ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Placement</th>
-                      <th>Distance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {placements.map(({ placement, distanceMeters }) => (
-                      <tr key={placement.id}>
-                        <td>{placement.name}</td>
-                        <td>{formatDistance(distanceMeters)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

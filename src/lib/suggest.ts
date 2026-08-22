@@ -22,6 +22,9 @@ export interface Suggestion {
    * untouched by re-runs); "suggested" = a fresh proposal; "unassigned" =
    * no viable placement found. */
   status: "committed" | "suggested" | "unassigned";
+  /** True when the only reason this student is unassigned is a missing
+   * Google API key — a setup issue, not a genuinely unplaceable student. */
+  needsSetup?: boolean;
 }
 
 export function ordinal(n: number): string {
@@ -140,6 +143,7 @@ export async function suggestAssignments(
   }
   const ranked: RankedCandidate[] = [];
   const routeErrorByStudent = new Map<string, string>();
+  const missingKeyStudents = new Set<string>();
   const routedCountByStudent = new Map<string, number>();
   for (const candidate of candidates) {
     const student = studentById.get(candidate.studentId)!;
@@ -156,7 +160,9 @@ export async function suggestAssignments(
       routedCountByStudent.set(candidate.studentId, (routedCountByStudent.get(candidate.studentId) ?? 0) + 1);
     } catch (err) {
       // Candidate drops out if routing fails (e.g. no transit route available).
-      const message = err instanceof MissingApiKeyError ? err.message : "A travel time lookup failed";
+      const isMissingKey = err instanceof MissingApiKeyError;
+      if (isMissingKey) missingKeyStudents.add(candidate.studentId);
+      const message = isMissingKey ? err.message : "A travel time lookup failed";
       routeErrorByStudent.set(candidate.studentId, message);
     }
   }
@@ -233,6 +239,7 @@ export async function suggestAssignments(
       rank: null,
       status: "unassigned",
       reason,
+      needsSetup: routedCount === 0 && missingKeyStudents.has(student.id),
     });
   }
 

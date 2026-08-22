@@ -18,6 +18,31 @@ export function dotIcon(color: string, dashed = false): L.DivIcon {
   });
 }
 
+/** A square marker (vs. the round dotIcon), used to visually distinguish
+ * lecturer homes from placement markers on the same map. */
+export function squareIcon(color: string): L.DivIcon {
+  return L.divIcon({
+    className: "",
+    html: `<span style="
+      display:block;
+      width:15px;height:15px;
+      background:${color};
+      border:2px solid white;
+      border-radius:3px;
+      box-shadow:0 0 2px rgba(0,0,0,0.6);
+    "></span>`,
+    iconSize: [15, 15],
+    iconAnchor: [7, 7],
+  });
+}
+
+/** Evenly-spaced hues so any number of lecturers get visually distinct
+ * colours without maintaining a fixed palette. */
+export function categoricalColor(index: number, total: number): string {
+  const hue = (360 / Math.max(total, 1)) * index;
+  return `hsl(${hue}, 65%, 42%)`;
+}
+
 export const STUDENT_COLOR = "#0f766e";
 export const PAEDIATRIC_COLOR = "#2563eb";
 export const ADULT_COLOR = "#b45309";

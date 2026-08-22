@@ -24,16 +24,21 @@ type RouteState =
 interface StudentDetailPanelProps {
   studentId: string;
   categoryFilter: Category | "all";
+  /** The suggested/committed placement to auto-highlight and show a route
+   * for as soon as the panel opens, without waiting on every other option. */
+  initialPlacementId: string | null;
 }
 
-export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailPanelProps) {
+export function StudentDetailPanel({ studentId, categoryFilter, initialPlacementId }: StudentDetailPanelProps) {
   const students = useLiveQuery(() => db.students.toArray(), []) ?? [];
   const placements = useLiveQuery(() => db.placements.toArray(), []) ?? [];
   const assignments = useLiveQuery(() => db.assignments.toArray(), []) ?? [];
 
   const [sortMode, setSortMode] = useState<TravelMode>("driving");
   const [routes, setRoutes] = useState<Record<string, { driving?: RouteState; transit?: RouteState }>>({});
-  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
+  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(initialPlacementId);
+  const [showAllOptions, setShowAllOptions] = useState(initialPlacementId == null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   const student = students.find((s) => s.id === studentId);
   const eligible = student
@@ -42,50 +47,74 @@ export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailP
 
   const mapPoints = useGeocodedPoints(student ? [student.postcode, ...eligible.map((p) => p.postcode)] : []);
 
-  useEffect(() => {
-    if (!student) return;
-    setRoutes({});
-    setSelectedPlacementId(null);
-    let cancelled = false;
-
-    (async () => {
-      for (const placement of eligible) {
-        for (const mode of ["driving", "transit"] as const) {
-          setRoutes((prev) => ({ ...prev, [placement.id]: { ...prev[placement.id], [mode]: { status: "loading" } } }));
-          try {
-            const result = await getRoute(student.postcode, placement.postcode, mode);
-            if (cancelled) return;
-            setRoutes((prev) => ({
-              ...prev,
-              [placement.id]: {
-                ...prev[placement.id],
-                [mode]: {
-                  status: "ok",
-                  durationSeconds: result.durationSeconds,
-                  distanceMeters: result.distanceMeters,
-                  geometry: result.geometry,
-                  summary: result.summary,
-                  manifest: result.manifest,
-                },
+  async function fetchRoutesFor(forStudent: { postcode: string }, placementList: Placement[]) {
+    for (const placement of placementList) {
+      for (const mode of ["driving", "transit"] as const) {
+        setRoutes((prev) => ({ ...prev, [placement.id]: { ...prev[placement.id], [mode]: { status: "loading" } } }));
+        try {
+          const result = await getRoute(forStudent.postcode, placement.postcode, mode);
+          setRoutes((prev) => ({
+            ...prev,
+            [placement.id]: {
+              ...prev[placement.id],
+              [mode]: {
+                status: "ok",
+                durationSeconds: result.durationSeconds,
+                distanceMeters: result.distanceMeters,
+                geometry: result.geometry,
+                summary: result.summary,
+                manifest: result.manifest,
               },
-            }));
-          } catch (err) {
-            if (cancelled) return;
-            const message = err instanceof MissingApiKeyError ? err.message : "Lookup failed";
-            setRoutes((prev) => ({
-              ...prev,
-              [placement.id]: { ...prev[placement.id], [mode]: { status: "error", message } },
-            }));
-          }
+            },
+          }));
+        } catch (err) {
+          const message = err instanceof MissingApiKeyError ? err.message : "Lookup failed";
+          setRoutes((prev) => ({
+            ...prev,
+            [placement.id]: { ...prev[placement.id], [mode]: { status: "error", message } },
+          }));
         }
       }
-    })();
+    }
+  }
 
+  // On opening a student, only fetch the suggested/committed placement's
+  // times (fast — usually already cache-warm from the suggestion run) and
+  // highlight it straight away. Everything else waits for "Show other options".
+  // This panel mounts fresh each time a row is expanded, so it reads
+  // directly from the database rather than the reactive students/placements
+  // queries above, which may not have resolved yet on this first render.
+  useEffect(() => {
+    setRoutes({});
+    setSelectedPlacementId(initialPlacementId);
+    setShowAllOptions(initialPlacementId == null);
+    if (!initialPlacementId) return;
+    let cancelled = false;
+    (async () => {
+      const [freshStudent, placement] = await Promise.all([
+        db.students.get(studentId),
+        db.placements.get(initialPlacementId),
+      ]);
+      if (cancelled || !freshStudent || !placement) return;
+      await fetchRoutesFor(freshStudent, [placement]);
+    })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, categoryFilter]);
+  }, [studentId, categoryFilter, initialPlacementId]);
+
+  async function handleShowAllOptions() {
+    if (!student) return;
+    setShowAllOptions(true);
+    setLoadingOptions(true);
+    try {
+      const rest = eligible.filter((p) => p.id !== initialPlacementId);
+      await fetchRoutesFor(student, rest);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }
 
   if (!student) return null;
 
@@ -125,6 +154,11 @@ export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailP
     else toast(result.reason ?? "Could not assign", "error");
   }
 
+  function selectPlacement(placement: Placement) {
+    setSelectedPlacementId(placement.id);
+    if (!routes[placement.id] && student) fetchRoutesFor(student, [placement]);
+  }
+
   return (
     <div className="student-detail-panel">
       {studentPoint && mapPlacements.length > 0 && (
@@ -135,7 +169,10 @@ export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailP
             placements={mapPlacements}
             assignments={assignments}
             selectedPlacementId={selectedPlacementId}
-            onSelect={setSelectedPlacementId}
+            onSelect={(id) => {
+              const placement = eligible.find((p) => p.id === id);
+              if (placement) selectPlacement(placement);
+            }}
             drivingGeometry={selectedDriving?.status === "ok" ? selectedDriving.geometry : null}
             transitGeometry={selectedTransit?.status === "ok" ? selectedTransit.geometry : null}
           />
@@ -153,16 +190,25 @@ export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailP
             <span>┄ Public transport route</span>
           </div>
           {selectedPlacement && (
-            <div className="route-summary-row">
-              <div className="route-summary-tile">
-                <strong>Driving</strong>
-                <div>{renderRouteSummary(selectedDriving)}</div>
+            <>
+              <p className="hint">
+                Showing route to <strong>{selectedPlacement.name}</strong>
+                {selectedPlacement.id === initialPlacementId ? " (suggested)" : ""}
+              </p>
+              <div className="route-summary-row">
+                <div className="route-summary-tile">
+                  <strong>Driving</strong>
+                  <div>{renderRouteSummary(selectedDriving)}</div>
+                </div>
+                <div className="route-summary-tile">
+                  <strong>Public transport</strong>
+                  <div>{renderRouteSummary(selectedTransit)}</div>
+                </div>
               </div>
-              <div className="route-summary-tile">
-                <strong>Public transport</strong>
-                <div>{renderRouteSummary(selectedTransit)}</div>
-              </div>
-            </div>
+              <button onClick={() => assign(selectedPlacement)} disabled={isPlacementFull(selectedPlacement)}>
+                Assign to {selectedPlacement.name}
+              </button>
+            </>
           )}
           {selectedTransit?.status === "ok" && selectedTransit.manifest && selectedTransit.manifest.length > 0 && (
             <div className="journey-manifest">
@@ -177,55 +223,62 @@ export function StudentDetailPanel({ studentId, categoryFilter }: StudentDetailP
         </>
       )}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Placement</th>
-            <th>Category</th>
-            <th className="sortable-th" onClick={() => setSortMode("driving")}>
-              Driving{sortMode === "driving" && " ▲"}
-            </th>
-            <th className="sortable-th" onClick={() => setSortMode("transit")}>
-              Public transport{sortMode === "transit" && " ▲"}
-            </th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((p) => {
-            const driving = routes[p.id]?.driving;
-            const transit = routes[p.id]?.transit;
-            const full = isPlacementFull(p);
-            return (
-              <tr
-                key={p.id}
-                className={selectedPlacementId === p.id ? "selected-row" : ""}
-                onClick={() => setSelectedPlacementId(p.id)}
-              >
-                <td>
-                  {p.name}
-                  {p.requiresDriver && <span className="badge">driver only</span>}
-                  {full && <span className="badge badge-full">full</span>}
-                </td>
-                <td>{p.category}</td>
-                <td>{renderRouteCell(driving)}</td>
-                <td>{renderRouteCell(transit)}</td>
-                <td>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      assign(p);
-                    }}
-                  >
-                    Assign
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {sorted.length === 0 && <p className="hint">No eligible placements for this student.</p>}
+      {!showAllOptions ? (
+        <button onClick={handleShowAllOptions} disabled={loadingOptions}>
+          {loadingOptions ? "Calculating…" : `Show other options (${eligible.length - 1} more)`}
+        </button>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Placement</th>
+              <th>Category</th>
+              <th className="sortable-th" onClick={() => setSortMode("driving")}>
+                Driving{sortMode === "driving" && " ▲"}
+              </th>
+              <th className="sortable-th" onClick={() => setSortMode("transit")}>
+                Public transport{sortMode === "transit" && " ▲"}
+              </th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((p) => {
+              const driving = routes[p.id]?.driving;
+              const transit = routes[p.id]?.transit;
+              const full = isPlacementFull(p);
+              return (
+                <tr
+                  key={p.id}
+                  className={selectedPlacementId === p.id ? "selected-row" : ""}
+                  onClick={() => selectPlacement(p)}
+                >
+                  <td>
+                    {p.name}
+                    {p.id === initialPlacementId && <span className="badge">suggested</span>}
+                    {p.requiresDriver && <span className="badge">driver only</span>}
+                    {full && <span className="badge badge-full">full</span>}
+                  </td>
+                  <td>{p.category}</td>
+                  <td>{renderRouteCell(driving)}</td>
+                  <td>{renderRouteCell(transit)}</td>
+                  <td>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        assign(p);
+                      }}
+                    >
+                      Assign
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {eligible.length === 0 && <p className="hint">No eligible placements for this student.</p>}
     </div>
   );
 }

@@ -19,6 +19,7 @@ export function AssignPlacements() {
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [showOnlyUnresolved, setShowOnlyUnresolved] = useState(true);
 
   async function run() {
     setRunning(true);
@@ -96,6 +97,34 @@ export function AssignPlacements() {
 
       {suggestions && (
         <>
+          <div className="stat-row">
+            <div className="stat-tile">
+              <div className="stat-value">{suggestions.filter((s) => s.status === "committed").length}</div>
+              <div className="stat-label">Already assigned</div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-value">{suggestions.filter((s) => s.status === "suggested").length}</div>
+              <div className="stat-label">Suggested, ready to commit</div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-value">
+                {suggestions.filter((s) => s.status === "unassigned" && !s.needsSetup).length}
+              </div>
+              <div className="stat-label">No viable placement found</div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-value">{suggestions.filter((s) => s.needsSetup).length}</div>
+              <div className="stat-label">Waiting on API key setup</div>
+            </div>
+          </div>
+          <label className="filter-row">
+            <input
+              type="checkbox"
+              checked={showOnlyUnresolved}
+              onChange={(e) => setShowOnlyUnresolved(e.target.checked)}
+            />
+            Show only unresolved (hide already-assigned students)
+          </label>
           <table>
             <thead>
               <tr>
@@ -110,7 +139,9 @@ export function AssignPlacements() {
               </tr>
             </thead>
             <tbody>
-              {suggestions.map((s) => {
+              {suggestions
+                .filter((s) => !showOnlyUnresolved || s.status !== "committed")
+                .map((s) => {
                 const student = students.find((st) => st.id === s.studentId);
                 const placement = placements.find((p) => p.id === s.placementId);
                 const overrideValue = overrides[s.studentId] !== undefined ? overrides[s.studentId] : s.placementId;
@@ -127,7 +158,10 @@ export function AssignPlacements() {
                       <td>
                         {s.status === "committed" && <span className="badge">assigned</span>}
                         {s.status === "suggested" && <span className="badge">suggested</span>}
-                        {s.status === "unassigned" && <span className="badge badge-full">waiting</span>}
+                        {s.status === "unassigned" && s.needsSetup && <span className="badge">setup needed</span>}
+                        {s.status === "unassigned" && !s.needsSetup && (
+                          <span className="badge badge-full">waiting</span>
+                        )}
                       </td>
                       <td>
                         {placement ? placement.name : <span className="text-error">{s.reason ?? "Unassigned"}</span>}
@@ -161,7 +195,11 @@ export function AssignPlacements() {
                     {expanded && (
                       <tr>
                         <td colSpan={8}>
-                          <StudentDetailPanel studentId={s.studentId} categoryFilter={categoryFilter} />
+                          <StudentDetailPanel
+                            studentId={s.studentId}
+                            categoryFilter={categoryFilter}
+                            initialPlacementId={overrideValue}
+                          />
                         </td>
                       </tr>
                     )}

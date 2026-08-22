@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AssignPlacements } from "./components/AssignPlacements";
+import { LecturerAllocationView } from "./components/LecturerAllocationView";
 import { LecturersTable } from "./components/LecturersTable";
 import { OverviewMap } from "./components/OverviewMap";
 import { PlacementsTable } from "./components/PlacementsTable";
@@ -15,6 +16,7 @@ const TABS = [
   { id: "lecturers", label: "Lecturers", render: () => <LecturersTable /> },
   { id: "map", label: "Overview Map", render: () => <OverviewMap /> },
   { id: "assign", label: "Assign Placements", render: () => <AssignPlacements /> },
+  { id: "allocation", label: "Lecturer Allocation", render: () => <LecturerAllocationView /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
 ] as const;
 
