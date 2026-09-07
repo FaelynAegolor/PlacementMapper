@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
 import { downloadSampleLecturersCsv, importLecturersCsv } from "../lib/csv";
+import { isOutwardCodeOnly } from "../lib/geocode";
 import { toast } from "../lib/toast";
 
 export function LecturersTable() {
@@ -59,8 +60,10 @@ export function LecturersTable() {
         </div>
       </div>
       <p className="hint">
-        CSV columns: <code>name, postcode</code> (home postcode, used to find each lecturer's nearest
-        placements). See the Lecturer Allocation tab once placements have students assigned.
+        CSV columns: <code>name, postcode</code> (home postcode, used to cluster each lecturer's visits near
+        them). Full postcode or just the outward code (e.g. <code>SE9</code>) if you'd rather not hold home
+        addresses — an outward code is placed at the centre of that area. See the Lecturer Allocation tab once
+        placements have students assigned.
       </p>
       {importErrors.length > 0 && (
         <div className="error-box">
@@ -90,6 +93,7 @@ export function LecturersTable() {
               </td>
               <td>
                 <input value={l.postcode} onChange={(e) => updateField(l.id, { postcode: e.target.value })} />
+                {isOutwardCodeOnly(l.postcode) && <div className="hint">area centre</div>}
               </td>
               <td>
                 <button className="link-danger" onClick={() => remove(l.id, l.name)}>

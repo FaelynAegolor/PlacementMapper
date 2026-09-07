@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
+import { categoryLabel, categoryWithArticle } from "../lib/assignments";
 import type { Year } from "../types";
 
 const YEARS: Year[] = [1, 2, 3];
@@ -109,6 +110,7 @@ export function StatusDashboard() {
                     <tr>
                       <th>Student</th>
                       <th>Driver?</th>
+                      <th>Needs</th>
                       <th>Postcode</th>
                     </tr>
                   </thead>
@@ -117,6 +119,7 @@ export function StatusDashboard() {
                       <tr key={s.id}>
                         <td>{s.name}</td>
                         <td>{s.isDriver ? "Yes" : "No"}</td>
+                        <td>{s.requiredCategory ? categoryLabel(s.requiredCategory) : "Either"}</td>
                         <td>{s.postcode}</td>
                       </tr>
                     ))}
@@ -138,10 +141,21 @@ export function StatusDashboard() {
                   <tbody>
                     {yearAssigned.map(({ student, assignment }) => {
                       const placement = placementById.get(assignment.placementId);
+                      const required = student.requiredCategory;
                       return (
                         <tr key={student.id}>
                           <td>{student.name}</td>
-                          <td>{placement?.name ?? "—"}</td>
+                          <td>
+                            {placement?.name ?? "—"}
+                            {required && placement && placement.category !== required && (
+                              <span
+                                className="badge badge-full"
+                                title={`Student needs ${categoryWithArticle(required)} placement`}
+                              >
+                                wrong type
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -179,7 +193,7 @@ export function StatusDashboard() {
                     ) : placement.capacity != null ? (
                       <span className={count >= placement.capacity ? "text-error" : ""}>
                         {count} / {placement.capacity}
-                        {count >= placement.capacity ? " (full)" : ""}
+                        {count > placement.capacity ? " (over)" : count === placement.capacity ? " (full)" : ""}
                       </span>
                     ) : (
                       `${count} (no cap)`

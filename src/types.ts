@@ -8,6 +8,9 @@ export interface Student {
   postcode: string;
   year: Year;
   isDriver: boolean;
+  /** The kind of placement this student has to be given. Undefined or null
+   * means either kind is fine. */
+  requiredCategory?: Category | null;
 }
 
 export interface Placement {
@@ -58,8 +61,8 @@ export interface RouteResult {
   durationSeconds: number;
   geometry: LatLng[];
   fetchedAt: number;
-  /** e.g. "Bus → Underground" for transit; "Traffic-aware (peak)" or
-   * "Free-flow (no traffic data)" for driving. */
+  /** e.g. "Bus → Underground" for transit; "Traffic-aware estimate (peak
+   * time)" or "Free-flow estimate (no traffic data)" for driving. */
   summary?: string;
   /** Step-by-step transit journey, only populated for transit routes. */
   manifest?: ManifestStep[];

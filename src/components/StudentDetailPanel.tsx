@@ -7,6 +7,7 @@ import { formatDistance, formatDuration, getRoute, MissingApiKeyError } from "..
 import { toast } from "../lib/toast";
 import { useGeocodedPoints } from "../lib/useGeocodedPoints";
 import type { Category, LatLng, ManifestStep, Placement, TravelMode } from "../types";
+import { ADULT_COLOR, PAEDIATRIC_COLOR, STUDENT_COLOR } from "./mapIcons";
 import { MatchMap } from "./MatchMap";
 
 type RouteState =
@@ -126,6 +127,7 @@ export function StudentDetailPanel({ studentId, categoryFilter, initialPlacement
     return da - db_;
   });
 
+  const otherOptionCount = eligible.filter((p) => p.id !== initialPlacementId).length;
   const selectedPlacement = placements.find((p) => p.id === selectedPlacementId) ?? null;
   const studentPoint = mapPoints.get(normalisePostcode(student.postcode));
   const mapPlacements = eligible
@@ -178,13 +180,13 @@ export function StudentDetailPanel({ studentId, categoryFilter, initialPlacement
           />
           <div className="map-legend">
             <span>
-              <i style={{ background: "#0f766e" }} /> Student
+              <i style={{ background: STUDENT_COLOR }} /> Student
             </span>
             <span>
-              <i style={{ background: "#2563eb" }} /> Paediatric placement
+              <i style={{ background: PAEDIATRIC_COLOR }} /> Paediatric placement
             </span>
             <span>
-              <i style={{ background: "#b45309" }} /> Adult placement
+              <i style={{ background: ADULT_COLOR }} /> Adult placement
             </span>
             <span>— Driving route</span>
             <span>┄ Public transport route</span>
@@ -225,7 +227,7 @@ export function StudentDetailPanel({ studentId, categoryFilter, initialPlacement
 
       {!showAllOptions ? (
         <button onClick={handleShowAllOptions} disabled={loadingOptions}>
-          {loadingOptions ? "Calculating…" : `Show other options (${eligible.length - 1} more)`}
+          {loadingOptions ? "Calculating…" : `Show other options (${otherOptionCount} more)`}
         </button>
       ) : (
         <table>
@@ -264,6 +266,8 @@ export function StudentDetailPanel({ studentId, categoryFilter, initialPlacement
                   <td>{renderRouteCell(transit)}</td>
                   <td>
                     <button
+                      disabled={full}
+                      title={full ? "Full for this student's year" : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         assign(p);

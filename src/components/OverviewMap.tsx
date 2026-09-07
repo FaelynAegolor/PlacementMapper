@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { MapContainer, Marker, Polygon, Popup, TileLayer } from "react-leaflet";
 import { db, getSetting } from "../db";
-import { placesAvailableLabel } from "../lib/assignments";
+import { categoryLabel, placesAvailableLabel } from "../lib/assignments";
 import { normalisePostcode } from "../lib/geocode";
 import { getCachedIsochrone } from "../lib/isochrone";
 import { useGeocodedPoints } from "../lib/useGeocodedPoints";
@@ -143,6 +143,8 @@ export function OverviewMap() {
                   <strong>{s.name}</strong>
                   <br />
                   Year {s.year} {s.isDriver ? "· Driver" : ""}
+                  <br />
+                  Needs: {s.requiredCategory ? categoryLabel(s.requiredCategory) : "either type"}
                   <br />
                   {s.postcode}
                 </Popup>

@@ -1,20 +1,7 @@
 import { getSetting } from "../../db";
-import type { LatLng } from "../../types";
+import type { LatLng, ManifestStep } from "../../types";
 import { nextPeakDeparture } from "../peakTime";
 import { decodePolyline } from "./polyline";
-
-export interface ManifestStep {
-  mode: "walk" | "transit";
-  instructions?: string;
-  line?: string;
-  vehicleType?: string;
-  headsign?: string;
-  fromStop?: string;
-  toStop?: string;
-  stopCount?: number;
-  durationSeconds: number;
-  distanceMeters: number;
-}
 
 interface TransitResult {
   distanceMeters: number;

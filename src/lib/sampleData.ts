@@ -2,13 +2,13 @@ import { db } from "../db";
 import type { Lecturer, Placement, Student } from "../types";
 
 export const SAMPLE_STUDENTS: Omit<Student, "id">[] = [
-  { name: "Oliver Bennett", postcode: "E8 1EA", year: 1, isDriver: true },
-  { name: "Amelia Foster", postcode: "E9 6HA", year: 2, isDriver: false },
+  { name: "Oliver Bennett", postcode: "E8 1EA", year: 1, isDriver: true, requiredCategory: "paediatric" },
+  { name: "Amelia Foster", postcode: "E9 6HA", year: 2, isDriver: false, requiredCategory: "adult" },
   { name: "Jack Reynolds", postcode: "E17 5NT", year: 3, isDriver: true },
   { name: "Isla Whitfield", postcode: "E3 4PX", year: 1, isDriver: false },
   { name: "Harry Sullivan", postcode: "N1 5AH", year: 2, isDriver: true },
-  { name: "Sophia Marsh", postcode: "N16 8HP", year: 3, isDriver: false },
-  { name: "Charlie Doyle", postcode: "NW1 8AH", year: 1, isDriver: false },
+  { name: "Sophia Marsh", postcode: "N16 8HP", year: 3, isDriver: false, requiredCategory: "paediatric" },
+  { name: "Charlie Doyle", postcode: "NW1 8AH", year: 1, isDriver: false, requiredCategory: "adult" },
   { name: "Grace Whitmore", postcode: "NW5 2LH", year: 2, isDriver: true },
   { name: "Thomas Coleman", postcode: "NW10 4UA", year: 3, isDriver: false },
   { name: "Ruby Sinclair", postcode: "SE8 3FA", year: 1, isDriver: true },
@@ -19,7 +19,7 @@ export const SAMPLE_STUDENTS: Omit<Student, "id">[] = [
   { name: "Oscar Mahoney", postcode: "SW4 7AA", year: 3, isDriver: true },
   { name: "Lily Radcliffe", postcode: "SW9 8QF", year: 1, isDriver: false },
   { name: "Leo Winters", postcode: "SW11 5TN", year: 2, isDriver: true },
-  { name: "Ella Sherwood", postcode: "SW12 8LF", year: 3, isDriver: false },
+  { name: "Ella Sherwood", postcode: "SW12 8LF", year: 3, isDriver: false, requiredCategory: "paediatric" },
   { name: "Daniel Osei", postcode: "SW18 1NN", year: 1, isDriver: false },
   { name: "Poppy Ahmed", postcode: "W3 7SN", year: 2, isDriver: true },
   { name: "Ethan Walsh", postcode: "W5 5RG", year: 3, isDriver: false },

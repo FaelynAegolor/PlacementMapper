@@ -126,7 +126,8 @@ export function PlacementsTable() {
       </div>
       <p className="hint">
         CSV columns: <code>name, postcode, category, yearsOffered, requiresDriver, capacity</code> (category is
-        "paediatric" or "adult"; yearsOffered e.g. "2;3")
+        "paediatric" or "adult"; yearsOffered e.g. "2;3"). Postcodes can be full or just the outward code (e.g.{" "}
+        <code>SE9</code>), which is placed at the centre of that area.
       </p>
       {importErrors.length > 0 && (
         <div className="error-box">
@@ -245,7 +246,7 @@ function renderCampusCheck(check: CampusCheck | undefined, maxMinutes: number | 
     <span className={over ? "text-error" : ""}>
       {over ? "⚠ " : "✓ "}
       {formatDuration(check.minutes * 60)}
-      {over ? ` (over ${maxMinutes})` : ""}
+      {over ? ` (over ${maxMinutes} min)` : ""}
     </span>
   );
 }

@@ -7,6 +7,7 @@
   --accent: #0f766e;
   --accent-text: #ffffff;
   --error: #b91c1c;
+  --warning: #9a5b06;
   --row-selected: #e6f5f3;
 
   font: 15px/1.5 "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
@@ -26,6 +27,7 @@
     --accent: #2dd4bf;
     --accent-text: #082826;
     --error: #f87171;
+    --warning: #fbbf24;
     --row-selected: #123734;
   }
 }
@@ -296,6 +298,21 @@ select:focus-visible {
 .badge-full {
   background: color-mix(in srgb, var(--error) 18%, transparent);
   color: var(--error);
+}
+
+.badge-warning {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--warning);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+/* Students placed further out than the travel limit, so they stand out in a
+   long table of otherwise fine assignments. */
+tbody tr.row-warning:not(.selected-row) > td {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
 }
 
 .journey-manifest {

@@ -47,11 +47,12 @@ export function LecturerMap({ allocation }: LecturerMapProps) {
                   <Popup>
                     <strong>{a.lecturer.name}</strong>
                     <br />
-                    Home · {a.placements.length} placement{a.placements.length === 1 ? "" : "s"}
+                    Home · {a.studentCount} student{a.studentCount === 1 ? "" : "s"} across{" "}
+                    {a.placements.length} placement{a.placements.length === 1 ? "" : "s"}
                   </Popup>
                 </Marker>
               )}
-              {a.placements.map(({ placement, distanceMeters }) => {
+              {a.placements.map(({ placement, distanceMeters, studentCount }) => {
                 const point = points.get(normalisePostcode(placement.postcode));
                 if (!point) return null;
                 return (
@@ -61,6 +62,7 @@ export function LecturerMap({ allocation }: LecturerMapProps) {
                       <br />
                       Allocated to {a.lecturer.name}
                       <br />
+                      {studentCount} student{studentCount === 1 ? "" : "s"} ·{" "}
                       {(distanceMeters / 1609.344).toFixed(1)} mi from their home
                     </Popup>
                   </Marker>

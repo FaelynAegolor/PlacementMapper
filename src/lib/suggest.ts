@@ -1,11 +1,27 @@
-import { db } from "../db";
+import { db, getSetting } from "../db";
 import type { Category, Placement, Student, TravelMode, Year } from "../types";
-import { isEligible } from "./assignments";
+import { categoryWithArticle, isEligible } from "./assignments";
 import { haversineDistanceMeters } from "./distance";
 import { geocodePostcode } from "./geocode";
 import { getRoute, MissingApiKeyError } from "./routing";
 
 const CANDIDATES_PER_STUDENT = 5;
+/** How many of the nearest placements to try routing for a student who has to
+ * be placed by the fallback pass. */
+const FALLBACK_ROUTE_ATTEMPTS = 3;
+/** Rough door-to-door speed (~18 mph), used only to turn a straight-line
+ * distance into an indicative time when no route can be fetched at all. */
+const ESTIMATED_METERS_PER_SECOND = 8;
+
+export const DEFAULT_MAX_STUDENT_MINUTES = 60;
+
+/** Journey time above which a student's placement is flagged as too far.
+ * Set on the Settings tab. */
+export async function getMaxStudentMinutes(): Promise<number> {
+  const raw = await getSetting("maxStudentMinutes");
+  const value = raw != null ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_MAX_STUDENT_MINUTES;
+}
 
 export interface Suggestion {
   studentId: string;
@@ -13,17 +29,27 @@ export interface Suggestion {
   mode: TravelMode | null;
   durationSeconds: number | null;
   distanceMeters: number | null;
-  /** 1 = closest eligible placement by travel time, 2 = second-closest, etc. */
+  /** 1 = closest eligible placement by travel time, 2 = second-closest, etc.
+   * Null when the student was placed by the fallback pass. */
   rank: number | null;
   /** Human-readable explanation of why this placement was chosen. */
   explanation?: string;
   reason?: string;
   /** "committed" = already has a saved assignment for this year (left
    * untouched by re-runs); "suggested" = a fresh proposal; "unassigned" =
-   * no viable placement found. */
+   * no placement this student is eligible for at all. */
   status: "committed" | "suggested" | "unassigned";
-  /** True when the only reason this student is unassigned is a missing
-   * Google API key — a setup issue, not a genuinely unplaceable student. */
+  /** Journey is longer than the configured limit — worth a second look. */
+  tooFar?: boolean;
+  /** The placement doesn't match the type this student needs. Only reachable
+   * for an assignment made before that requirement was set. */
+  typeMismatch?: boolean;
+  /** Placed here even though the placement is already full for this year. */
+  overCapacity?: boolean;
+  /** Time and distance are a straight-line estimate, not a real route. */
+  estimated?: boolean;
+  /** True when travel times are missing only because there's no Google API
+   * key — a setup issue, not a genuinely unreachable placement. */
   needsSetup?: boolean;
 }
 
@@ -45,6 +71,7 @@ export async function suggestAssignments(
 ): Promise<Suggestion[]> {
   const students = await db.students.where("year").equals(year).toArray();
   const placements = await db.placements.toArray();
+  const maxSeconds = (await getMaxStudentMinutes()) * 60;
 
   const otherYear = year === 2 ? 3 : year === 3 ? 2 : null;
   const excludedForStudent = new Map<string, string>();
@@ -92,10 +119,12 @@ export async function suggestAssignments(
     eligibleByStudent.set(student.id, eligible);
   }
 
-  // Geocode everything up front (cached, so cheap on repeat runs).
+  // Geocode everything up front (cached, so cheap on repeat runs). Committed
+  // students are included so their journey can still be estimated when it
+  // can't be routed.
   const geocodeErrors = new Map<string, string>();
   const studentLatLng = new Map<string, { lat: number; lng: number }>();
-  for (const student of toSuggest) {
+  for (const student of students) {
     try {
       studentLatLng.set(student.id, await geocodePostcode(student.postcode));
     } catch {
@@ -133,7 +162,7 @@ export async function suggestAssignments(
     candidates.push(...withDistance);
   }
 
-  const studentById = new Map<string, Student>(toSuggest.map((s) => [s.id, s]));
+  const studentById = new Map<string, Student>(students.map((s) => [s.id, s]));
 
   // Fetch real travel times for the shortlisted candidates.
   interface RankedCandidate extends Candidate {
@@ -142,7 +171,6 @@ export async function suggestAssignments(
     distanceMeters: number;
   }
   const ranked: RankedCandidate[] = [];
-  const routeErrorByStudent = new Map<string, string>();
   const missingKeyStudents = new Set<string>();
   const routedCountByStudent = new Map<string, number>();
   for (const candidate of candidates) {
@@ -159,11 +187,10 @@ export async function suggestAssignments(
       });
       routedCountByStudent.set(candidate.studentId, (routedCountByStudent.get(candidate.studentId) ?? 0) + 1);
     } catch (err) {
-      // Candidate drops out if routing fails (e.g. no transit route available).
-      const isMissingKey = err instanceof MissingApiKeyError;
-      if (isMissingKey) missingKeyStudents.add(candidate.studentId);
-      const message = isMissingKey ? err.message : "A travel time lookup failed";
-      routeErrorByStudent.set(candidate.studentId, message);
+      // Candidate drops out of the ranked pass if routing fails (e.g. no
+      // transit route available); the fallback pass below still places the
+      // student, on a straight-line estimate if it has to.
+      if (err instanceof MissingApiKeyError) missingKeyStudents.add(candidate.studentId);
     }
   }
   ranked.sort((a, b) => a.durationSeconds - b.durationSeconds);
@@ -209,25 +236,127 @@ export async function suggestAssignments(
     });
   }
 
-  // Fill in anyone left unassigned, with a reason.
+  // Nobody is left without a placement for want of a nearby or non-full
+  // option. Anyone the ranked pass could not place is given the nearest
+  // eligible placement anyway — over capacity if every one of them is full,
+  // and on a straight-line estimate if no route can be fetched — flagged so
+  // it can be reviewed rather than silently dropped.
+  for (const student of toSuggest) {
+    if (suggestions.has(student.id)) continue;
+    const from = studentLatLng.get(student.id);
+    const eligible = eligibleByStudent.get(student.id) ?? [];
+    if (!from || eligible.length === 0) continue; // genuinely unplaceable — reported below
+
+    const byDistance = eligible
+      .map((placement) => {
+        const to = placementLatLng.get(placement.id);
+        return to ? { placement, straightLineMeters: haversineDistanceMeters(from, to) } : null;
+      })
+      .filter((c): c is { placement: Placement; straightLineMeters: number } => c !== null)
+      .sort((a, b) => a.straightLineMeters - b.straightLineMeters);
+    if (byDistance.length === 0) continue;
+
+    const hasSpace = (placement: Placement) =>
+      placement.capacity == null || (placementCounts.get(placement.id) ?? 0) < placement.capacity;
+    const withSpace = byDistance.filter((c) => hasSpace(c.placement));
+    const overCapacity = withSpace.length === 0;
+    const pool = overCapacity ? byDistance : withSpace;
+
+    // Try for a real travel time on the nearest few before falling back to a
+    // straight-line estimate.
+    const mode: TravelMode = student.isDriver ? "driving" : "transit";
+    let best: { placement: Placement; durationSeconds: number; distanceMeters: number } | null = null;
+    for (const candidate of pool.slice(0, FALLBACK_ROUTE_ATTEMPTS)) {
+      try {
+        const route = await getRoute(student.postcode, candidate.placement.postcode, mode);
+        if (!best || route.durationSeconds < best.durationSeconds) {
+          best = {
+            placement: candidate.placement,
+            durationSeconds: route.durationSeconds,
+            distanceMeters: route.distanceMeters,
+          };
+        }
+      } catch (err) {
+        if (err instanceof MissingApiKeyError) missingKeyStudents.add(student.id);
+      }
+    }
+
+    const nearest = pool[0];
+    const chosen = best ?? {
+      placement: nearest.placement,
+      durationSeconds: Math.round(nearest.straightLineMeters / ESTIMATED_METERS_PER_SECOND),
+      distanceMeters: nearest.straightLineMeters,
+    };
+    const estimated = best === null;
+
+    placementCounts.set(chosen.placement.id, (placementCounts.get(chosen.placement.id) ?? 0) + 1);
+    suggestions.set(student.id, {
+      studentId: student.id,
+      placementId: chosen.placement.id,
+      mode: estimated ? null : mode,
+      durationSeconds: chosen.durationSeconds,
+      distanceMeters: chosen.distanceMeters,
+      rank: null,
+      status: "suggested",
+      overCapacity,
+      estimated,
+      needsSetup: estimated && missingKeyStudents.has(student.id),
+      explanation: overCapacity
+        ? `Every eligible placement is full for year ${year} — placed at the nearest one, which puts it over capacity.`
+        : estimated
+          ? "No travel time could be fetched — nearest eligible placement with space, by straight-line distance."
+          : "Nearest eligible placement with space — nothing closer could be routed or had room.",
+    });
+  }
+
+  // Committed students are routed too (cached after the first run) so the
+  // table shows their real journey and keeps flagging anyone travelling too
+  // far, rather than losing the warning the moment it's committed.
+  for (const student of students) {
+    const suggestion = suggestions.get(student.id);
+    if (suggestion?.status !== "committed" || !suggestion.placementId) continue;
+    const placement = placementById.get(suggestion.placementId);
+    if (!placement) continue;
+    const mode: TravelMode = student.isDriver ? "driving" : "transit";
+    try {
+      const route = await getRoute(student.postcode, placement.postcode, mode);
+      suggestion.mode = mode;
+      suggestion.durationSeconds = route.durationSeconds;
+      suggestion.distanceMeters = route.distanceMeters;
+    } catch (err) {
+      // Fall back to the same straight-line estimate the fallback pass uses.
+      const from = studentLatLng.get(student.id);
+      const to = placementLatLng.get(placement.id);
+      if (!from || !to) continue;
+      const straightLineMeters = haversineDistanceMeters(from, to);
+      suggestion.distanceMeters = straightLineMeters;
+      suggestion.durationSeconds = Math.round(straightLineMeters / ESTIMATED_METERS_PER_SECOND);
+      suggestion.estimated = true;
+      if (err instanceof MissingApiKeyError) suggestion.needsSetup = true;
+    }
+  }
+
+  // Anyone left has no placement they are eligible for at all — the one case
+  // that can't be solved by travelling further.
   for (const student of toSuggest) {
     if (suggestions.has(student.id)) continue;
     const geocodeError = geocodeErrors.get(student.id);
-    const hadEligible = (eligibleByStudent.get(student.id) ?? []).length > 0;
-    const routedCount = routedCountByStudent.get(student.id) ?? 0;
-    const routeError = routeErrorByStudent.get(student.id);
+    const eligible = eligibleByStudent.get(student.id) ?? [];
 
     let reason: string;
+    const driverNote = student.isDriver ? "" : " who don't drive";
     if (geocodeError) {
       reason = geocodeError;
-    } else if (!hadEligible) {
-      reason = "No eligible placements for this student";
-    } else if (routedCount === 0 && routeError) {
-      reason = routeError;
-    } else if (routedCount === 0) {
-      reason = "Could not compute a travel time to any nearby eligible placement";
+    } else if (eligible.length > 0) {
+      reason = "None of this student's eligible placements could be located";
+    } else if (categoryFilter && student.requiredCategory && student.requiredCategory !== categoryFilter) {
+      reason = `This run is filtered to ${categoryFilter} placements, but this student needs ${categoryWithArticle(student.requiredCategory)} one`;
+    } else if (student.requiredCategory) {
+      reason = `No ${student.requiredCategory} placement takes year ${year} students${driverNote}`;
+    } else if (categoryFilter) {
+      reason = `No ${categoryFilter} placement takes year ${year} students${driverNote} — this run is filtered to ${categoryFilter} placements`;
     } else {
-      reason = "All nearby eligible placements are full for this year";
+      reason = `No placement takes year ${year} students${driverNote}`;
     }
 
     suggestions.set(student.id, {
@@ -239,8 +368,22 @@ export async function suggestAssignments(
       rank: null,
       status: "unassigned",
       reason,
-      needsSetup: routedCount === 0 && missingKeyStudents.has(student.id),
     });
+  }
+
+  // Flag long journeys, placements now over capacity for the year, and any
+  // assignment that predates the student's required placement type.
+  for (const suggestion of suggestions.values()) {
+    if (suggestion.durationSeconds != null && suggestion.durationSeconds > maxSeconds) {
+      suggestion.tooFar = true;
+    }
+    const placement = suggestion.placementId ? placementById.get(suggestion.placementId) : null;
+    if (!placement) continue;
+    if (placement.capacity != null && (placementCounts.get(placement.id) ?? 0) > placement.capacity) {
+      suggestion.overCapacity = true;
+    }
+    const required = studentById.get(suggestion.studentId)?.requiredCategory;
+    if (required && placement.category !== required) suggestion.typeMismatch = true;
   }
 
   return students.map((s) => suggestions.get(s.id)!);

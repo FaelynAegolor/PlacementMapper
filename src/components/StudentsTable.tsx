@@ -2,8 +2,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { db } from "../db";
 import { downloadSampleStudentsCsv, importStudentsCsv } from "../lib/csv";
+import { isOutwardCodeOnly } from "../lib/geocode";
 import { toast } from "../lib/toast";
-import type { Year } from "../types";
+import type { Category, Year } from "../types";
 
 export function StudentsTable() {
   const students = useLiveQuery(() => db.students.orderBy("name").toArray(), []);
@@ -27,8 +28,30 @@ export function StudentsTable() {
     if (errors.length) toast(`${errors.length} row${errors.length === 1 ? "" : "s"} skipped — see details below`, "error");
   }
 
-  async function updateField(id: string, patch: Partial<{ name: string; postcode: string; year: Year; isDriver: boolean }>) {
+  async function updateField(
+    id: string,
+    patch: Partial<{
+      name: string;
+      postcode: string;
+      year: Year;
+      isDriver: boolean;
+      requiredCategory: Category | null;
+    }>,
+  ) {
     await db.students.update(id, patch);
+  }
+
+  /** A student can hold assignments from earlier years of their course, but
+   * not for a year they haven't reached — those would sit in the database
+   * taking up a place at a placement for a student who isn't there. */
+  async function changeYear(id: string, name: string, year: Year) {
+    await db.students.update(id, { year });
+    const held = await db.assignments.where("studentId").equals(id).toArray();
+    const ahead = held.filter((a) => a.year > year);
+    if (ahead.length === 0) return;
+    await db.assignments.bulkDelete(ahead.map((a) => a.id));
+    const years = ahead.map((a) => a.year).sort().join(" and ");
+    toast(`Removed ${name}'s year ${years} placement${ahead.length === 1 ? "" : "s"} — they're now year ${year}`);
   }
 
   function commitName(id: string) {
@@ -54,6 +77,7 @@ export function StudentsTable() {
       postcode: "",
       year: 1,
       isDriver: false,
+      requiredCategory: null,
     });
     toast("Student added");
   }
@@ -76,7 +100,10 @@ export function StudentsTable() {
         </div>
       </div>
       <p className="hint">
-        CSV columns: <code>name, postcode, year, isDriver</code>
+        CSV columns: <code>name, postcode, year, isDriver, requiredCategory</code> (requiredCategory is
+        optional — "paediatric", "adult", or blank for either). Postcodes can be full or just the outward code
+        (e.g. <code>SE9</code>) if you'd rather not hold students' full addresses; an outward code is placed at
+        the centre of that area, so travel times are approximate.
       </p>
       {importErrors.length > 0 && (
         <div className="error-box">
@@ -92,6 +119,7 @@ export function StudentsTable() {
             <th>Postcode</th>
             <th>Year</th>
             <th>Driver?</th>
+            <th>Needs placement type</th>
             <th></th>
           </tr>
         </thead>
@@ -111,11 +139,12 @@ export function StudentsTable() {
                   value={s.postcode}
                   onChange={(e) => updateField(s.id, { postcode: e.target.value })}
                 />
+                {isOutwardCodeOnly(s.postcode) && <div className="hint">area centre</div>}
               </td>
               <td>
                 <select
                   value={s.year}
-                  onChange={(e) => updateField(s.id, { year: Number(e.target.value) as Year })}
+                  onChange={(e) => changeYear(s.id, s.name, Number(e.target.value) as Year)}
                 >
                   <option value={1}>1</option>
                   <option value={2}>2</option>
@@ -128,6 +157,18 @@ export function StudentsTable() {
                   checked={s.isDriver}
                   onChange={(e) => updateField(s.id, { isDriver: e.target.checked })}
                 />
+              </td>
+              <td>
+                <select
+                  value={s.requiredCategory ?? ""}
+                  onChange={(e) =>
+                    updateField(s.id, { requiredCategory: (e.target.value || null) as Category | null })
+                  }
+                >
+                  <option value="">Either</option>
+                  <option value="paediatric">Paediatric</option>
+                  <option value="adult">Adult</option>
+                </select>
               </td>
               <td>
                 <button className="link-danger" onClick={() => remove(s.id, s.name)}>

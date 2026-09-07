@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { isValidPostcode } from "./geocode";
 import { SAMPLE_LECTURERS, SAMPLE_PLACEMENTS, SAMPLE_STUDENTS } from "./sampleData";
 import type { Category, Lecturer, Placement, Student, Year } from "../types";
 
@@ -7,7 +8,13 @@ export interface ImportResult<T> {
   errors: string[];
 }
 
-const POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+/** Accepts the spellings people actually type in a spreadsheet. */
+function parseCategory(value: string | undefined): Category | null {
+  const normalised = value?.trim().toLowerCase();
+  if (normalised === "paediatric" || normalised === "paediatrics" || normalised === "paeds") return "paediatric";
+  if (normalised === "adult" || normalised === "adults") return "adult";
+  return null;
+}
 
 function parseCsv(file: File): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
@@ -32,14 +39,20 @@ export async function importStudentsCsv(file: File): Promise<ImportResult<Studen
     const postcode = row.postcode?.trim();
     const year = Number(row.year) as Year;
     const isDriver = /^(true|yes|y|1)$/i.test(row.isdriver?.trim() ?? "");
+    const requiredRaw = row.requiredcategory?.trim();
+    const requiredCategory = parseCategory(requiredRaw);
 
     if (!name) return void errors.push(`Line ${line}: missing name`);
-    if (!postcode || !POSTCODE_RE.test(postcode))
+    if (!postcode || !isValidPostcode(postcode))
       return void errors.push(`Line ${line}: invalid postcode "${row.postcode}"`);
     if (![1, 2, 3].includes(year))
       return void errors.push(`Line ${line}: year must be 1, 2 or 3`);
+    if (requiredRaw && !requiredCategory)
+      return void errors.push(
+        `Line ${line}: requiredCategory must be "paediatric", "adult", or left blank for either`,
+      );
 
-    rows.push({ id: crypto.randomUUID(), name, postcode, year, isDriver });
+    rows.push({ id: crypto.randomUUID(), name, postcode, year, isDriver, requiredCategory });
   });
 
   return { rows, errors };
@@ -54,7 +67,7 @@ export async function importPlacementsCsv(file: File): Promise<ImportResult<Plac
     const line = i + 2;
     const name = row.name?.trim();
     const postcode = row.postcode?.trim();
-    const category = row.category?.trim().toLowerCase() as Category;
+    const category = parseCategory(row.category);
     const yearsOffered = (row.yearsoffered ?? "")
       .split(/[;,]/)
       .map((y) => Number(y.trim()))
@@ -63,10 +76,9 @@ export async function importPlacementsCsv(file: File): Promise<ImportResult<Plac
     const capacity = row.capacity?.trim() ? Number(row.capacity.trim()) : null;
 
     if (!name) return void errors.push(`Line ${line}: missing name`);
-    if (!postcode || !POSTCODE_RE.test(postcode))
+    if (!postcode || !isValidPostcode(postcode))
       return void errors.push(`Line ${line}: invalid postcode "${row.postcode}"`);
-    if (category !== "paediatric" && category !== "adult")
-      return void errors.push(`Line ${line}: category must be "paediatric" or "adult"`);
+    if (!category) return void errors.push(`Line ${line}: category must be "paediatric" or "adult"`);
     if (yearsOffered.length === 0)
       return void errors.push(`Line ${line}: yearsOffered must include at least one of 1, 2, 3`);
 
@@ -95,7 +107,7 @@ export async function importLecturersCsv(file: File): Promise<ImportResult<Lectu
     const postcode = row.postcode?.trim();
 
     if (!name) return void errors.push(`Line ${line}: missing name`);
-    if (!postcode || !POSTCODE_RE.test(postcode))
+    if (!postcode || !isValidPostcode(postcode))
       return void errors.push(`Line ${line}: invalid postcode "${row.postcode}"`);
 
     rows.push({ id: crypto.randomUUID(), name, postcode });
@@ -123,6 +135,7 @@ export function downloadSampleStudentsCsv() {
       postcode: s.postcode,
       year: s.year,
       isDriver: s.isDriver,
+      requiredCategory: s.requiredCategory ?? "",
     })),
   );
 }

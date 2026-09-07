@@ -1,13 +1,13 @@
 import { db, getSetting } from "../../db";
 import type { RouteResult, TravelMode } from "../../types";
-import { geocodePostcode } from "../geocode";
+import { geocodePostcode, normalisePostcode } from "../geocode";
 import { fetchDrivingRouteGoogle, fetchDrivingRouteOsrm } from "./driving";
 import { fetchTransitRoute } from "./transit";
 
 export { MissingApiKeyError } from "./transit";
 
 function routeCacheKey(fromPostcode: string, toPostcode: string, engine: string): string {
-  return `${fromPostcode.trim().toUpperCase()}|${toPostcode.trim().toUpperCase()}|${engine}`;
+  return `${normalisePostcode(fromPostcode)}|${normalisePostcode(toPostcode)}|${engine}`;
 }
 
 export async function getRoute(

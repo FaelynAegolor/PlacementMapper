@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { db, getSetting, setSetting } from "../db";
 import { computeIsochrone } from "../lib/isochrone";
 import { loadSampleData } from "../lib/sampleData";
+import { DEFAULT_MAX_STUDENT_MINUTES } from "../lib/suggest";
 import { toast } from "../lib/toast";
 
 interface Backup {
@@ -11,7 +12,14 @@ interface Backup {
   lecturers: unknown[];
   geocodeCache: unknown[];
   routeCache: unknown[];
+  /** Base location, travel limits and the like. Absent in older backups, and
+   * never includes the API key. */
+  settings?: unknown[];
+  isochroneCache?: unknown[];
 }
+
+/** Left out of backups so a shared or emailed file can't leak it. */
+const SECRET_SETTINGS = ["googleApiKey"];
 
 const DEFAULT_MAX_MINUTES = 90;
 
@@ -23,6 +31,7 @@ export function Settings() {
 
   const [basePostcode, setBasePostcode] = useState("");
   const [maxMinutes, setMaxMinutes] = useState(DEFAULT_MAX_MINUTES);
+  const [studentMaxMinutes, setStudentMaxMinutes] = useState(DEFAULT_MAX_STUDENT_MINUTES);
   const [baseLoaded, setBaseLoaded] = useState(false);
   const [computing, setComputing] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -32,9 +41,14 @@ export function Settings() {
       setApiKey(v ?? "");
       setKeyLoaded(true);
     });
-    Promise.all([getSetting("basePostcode"), getSetting("baseMaxMinutes")]).then(([pc, mins]) => {
+    Promise.all([
+      getSetting("basePostcode"),
+      getSetting("baseMaxMinutes"),
+      getSetting("maxStudentMinutes"),
+    ]).then(([pc, mins, studentMins]) => {
       setBasePostcode(pc ?? "");
       setMaxMinutes(mins ? Number(mins) : DEFAULT_MAX_MINUTES);
+      setStudentMaxMinutes(studentMins ? Number(studentMins) : DEFAULT_MAX_STUDENT_MINUTES);
       setBaseLoaded(true);
     });
   }, []);
@@ -69,6 +83,11 @@ export function Settings() {
     }
   }
 
+  async function saveStudentTravelLimit() {
+    await setSetting("maxStudentMinutes", String(studentMaxMinutes));
+    toast("Student travel limit saved");
+  }
+
   async function saveKey() {
     await setSetting("googleApiKey", apiKey.trim());
     setSaved(true);
@@ -84,6 +103,8 @@ export function Settings() {
       lecturers: await db.lecturers.toArray(),
       geocodeCache: await db.geocodeCache.toArray(),
       routeCache: await db.routeCache.toArray(),
+      settings: (await db.settings.toArray()).filter((entry) => !SECRET_SETTINGS.includes(entry.key)),
+      isochroneCache: await db.isochroneCache.toArray(),
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -106,8 +127,21 @@ export function Settings() {
 
     await db.transaction(
       "rw",
-      [db.students, db.placements, db.assignments, db.lecturers, db.geocodeCache, db.routeCache],
+      [
+        db.students,
+        db.placements,
+        db.assignments,
+        db.lecturers,
+        db.geocodeCache,
+        db.routeCache,
+        db.settings,
+        db.isochroneCache,
+      ],
       async () => {
+        // The boundary is always cleared, not merged: keeping one computed for
+        // a different base postcode would draw a map that doesn't match the
+        // settings it claims to come from.
+        const apiKey = await db.settings.get("googleApiKey");
         await Promise.all([
           db.students.clear(),
           db.placements.clear(),
@@ -115,6 +149,8 @@ export function Settings() {
           db.lecturers.clear(),
           db.geocodeCache.clear(),
           db.routeCache.clear(),
+          db.settings.clear(),
+          db.isochroneCache.clear(),
         ]);
         await Promise.all([
           db.students.bulkAdd(backup.students as never[]),
@@ -123,10 +159,14 @@ export function Settings() {
           db.lecturers.bulkAdd((backup.lecturers ?? []) as never[]),
           db.geocodeCache.bulkAdd(backup.geocodeCache as never[]),
           db.routeCache.bulkAdd(backup.routeCache as never[]),
+          db.settings.bulkAdd((backup.settings ?? []) as never[]),
+          db.isochroneCache.bulkAdd((backup.isochroneCache ?? []) as never[]),
         ]);
+        // The key belongs to this browser, not to the backup file.
+        if (apiKey) await db.settings.put(apiKey);
       },
     );
-    toast("Backup imported");
+    toast("Backup imported — reload the page to pick up restored settings");
   }
 
   async function handleLoadSampleData() {
@@ -221,10 +261,34 @@ export function Settings() {
       </section>
 
       <section>
+        <h3>Student travel limit</h3>
+        <p className="hint">
+          Every student is given a placement, even when nothing suitable is close by. Any journey from home to
+          placement longer than this is highlighted on the Assign Placements tab so you can review it.
+        </p>
+        <input
+          type="number"
+          min={1}
+          value={studentMaxMinutes}
+          onChange={(e) => setStudentMaxMinutes(Number(e.target.value))}
+          disabled={!baseLoaded}
+          style={{ width: "5rem" }}
+        />
+        <span className="hint" style={{ marginRight: "0.5rem" }}>
+          minutes
+        </span>
+        <button onClick={saveStudentTravelLimit} disabled={!baseLoaded}>
+          Save
+        </button>
+      </section>
+
+      <section>
         <h3>Backup / restore</h3>
         <p className="hint">
           All data lives only in this browser. Export a backup before clearing browser storage, switching
-          browsers, or moving to another machine.
+          browsers, or moving to another machine. The backup carries your students, placements, lecturers,
+          assignments and settings — but not your Google API key, so that a shared file can't leak it. Importing
+          replaces everything except that key.
         </p>
         <button onClick={exportData}>Export backup (JSON)</button>
         <button onClick={() => fileInput.current?.click()}>Import backup</button>
