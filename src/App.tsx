@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AssignPlacements } from "./components/AssignPlacements";
+import { FindPlacements } from "./components/FindPlacements";
 import { LecturerAllocationView } from "./components/LecturerAllocationView";
 import { LecturersTable } from "./components/LecturersTable";
 import { OverviewMap } from "./components/OverviewMap";
@@ -18,6 +19,7 @@ const TABS = [
   { id: "assign", label: "Assign Placements", render: () => <AssignPlacements /> },
   { id: "allocation", label: "Lecturer Allocation", render: () => <LecturerAllocationView /> },
   { id: "settings", label: "Settings", render: () => <Settings /> },
+  { id: "find", label: "Find Placements", render: () => <FindPlacements /> },
 ] as const;
 
 function App() {

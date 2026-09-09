@@ -7,6 +7,9 @@ import type { LatLng } from "../types";
 import { categoricalColor, dotIcon, squareIcon } from "./mapIcons";
 import { FitBounds } from "./FitBounds";
 
+/** Opening view before FitBounds settles on the real data. */
+const UK_CENTRE: [number, number] = [54.5, -3];
+
 interface LecturerMapProps {
   allocation: LecturerAllocation[];
 }
@@ -31,7 +34,7 @@ export function LecturerMap({ allocation }: LecturerMapProps) {
         ))}
         <span>◼ Lecturer home · ● Placement</span>
       </div>
-      <MapContainer center={[51.5, -0.1]} zoom={10} style={{ height: "55vh", width: "100%" }}>
+      <MapContainer center={UK_CENTRE} zoom={6} style={{ height: "55vh", width: "100%" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

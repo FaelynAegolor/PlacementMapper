@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { destinationPoint } from "./distance";
 import type { LatLng, TravelMode } from "../types";
 import { geocodePostcode, normalisePostcode } from "./geocode";
 import { fetchDrivingRouteGoogle, fetchDrivingRouteOsrm } from "./routing/driving";
@@ -9,18 +10,6 @@ const BEARING_COUNT = 12;
 const COARSE_STEPS_MILES = [8, 16, 24, 32, 40];
 const REFINEMENT_STEPS = 2;
 const METERS_PER_MILE = 1609.344;
-
-function destinationPoint(start: LatLng, bearingDeg: number, distanceMeters: number): LatLng {
-  const R = 6371000;
-  const delta = distanceMeters / R;
-  const theta = (bearingDeg * Math.PI) / 180;
-  const phi1 = (start.lat * Math.PI) / 180;
-  const lambda1 = (start.lng * Math.PI) / 180;
-  const phi2 = Math.asin(Math.sin(phi1) * Math.cos(delta) + Math.cos(phi1) * Math.sin(delta) * Math.cos(theta));
-  const lambda2 =
-    lambda1 + Math.atan2(Math.sin(theta) * Math.sin(delta) * Math.cos(phi1), Math.cos(delta) - Math.sin(phi1) * Math.sin(phi2));
-  return { lat: (phi2 * 180) / Math.PI, lng: (((lambda2 * 180) / Math.PI + 540) % 360) - 180 };
-}
 
 async function travelSeconds(from: LatLng, to: LatLng, mode: TravelMode, apiKey?: string): Promise<number | null> {
   try {

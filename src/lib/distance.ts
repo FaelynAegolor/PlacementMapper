@@ -21,3 +21,23 @@ export function haversineDistanceMeters(a: LatLng, b: LatLng): number {
   const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   return EARTH_RADIUS_METERS * c;
 }
+
+/** The point a given distance and compass bearing away from a start point. */
+export function destinationPoint(start: LatLng, bearingDegrees: number, distanceMeters: number): LatLng {
+  const angular = distanceMeters / EARTH_RADIUS_METERS;
+  const bearing = toRadians(bearingDegrees);
+  const lat1 = toRadians(start.lat);
+  const lng1 = toRadians(start.lng);
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angular) + Math.cos(lat1) * Math.sin(angular) * Math.cos(bearing),
+  );
+  const lng2 =
+    lng1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angular) * Math.cos(lat1),
+      Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2),
+    );
+
+  return { lat: (lat2 * 180) / Math.PI, lng: (((lng2 * 180) / Math.PI + 540) % 360) - 180 };
+}

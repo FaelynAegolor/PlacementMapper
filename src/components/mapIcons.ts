@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { KIND_ORDER, type OpportunityKind } from "../lib/opportunityMatching";
 
 /** Coloured circle markers via divIcon, avoiding the default Leaflet marker
  * image assets (which don't resolve cleanly under Vite). */
@@ -48,3 +49,9 @@ export const PAEDIATRIC_COLOR = "#2563eb";
 export const ADULT_COLOR = "#b45309";
 export const DRIVING_ROUTE_COLOR = "#0f766e";
 export const TRANSIT_ROUTE_COLOR = "#7c3aed";
+
+/** One colour per kind of placement opportunity, drawn from the same evenly
+ * spaced hues as the lecturer colours. */
+export function kindColor(kind: OpportunityKind): string {
+  return categoricalColor(KIND_ORDER.indexOf(kind), KIND_ORDER.length);
+}
